@@ -233,6 +233,17 @@ tr.total-row td:first-child{color:var(--brand)}
       <div id="stockBody" class="hide">
         <div class="kpis" id="stockKpis" style="margin-bottom:16px"></div>
 
+        <div class="subhead">Stock, Stock Cost และ MOH รายสาขา</div>
+        <div class="tbl-scroll" style="margin-bottom:16px">
+          <table id="stockStoreTbl">
+            <thead><tr>
+              <th>สาขา</th><th>Stock (ชิ้น)</th><th>Stock Cost</th><th>ขาย/เดือน (เฉลี่ย)</th><th>MOH (เดือน)</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="sale-day-note" style="margin-bottom:16px">MOH (Months On Hand) = Stock ÷ ยอดขายเฉลี่ย/เดือน (ยอดขาย 90 วันล่าสุด ÷ 3) — สูง = สต็อกเหลือหลายเดือน (ขายช้า), ต่ำ = สต็อกจะหมดเร็ว</div>
+
         <div class="subhead">ABC Analysis (ตามมูลค่าขาย 90 วันล่าสุด)</div>
         <div class="kpis" id="abcKpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px"></div>
 
@@ -855,6 +866,34 @@ function renderStock(){
     {k:'มูลค่าสต็อก (ต้นทุน)', v:baht(totalCostAmt), sub:'GP ถ้าขายหมด '+nf1.format(totalStockAmt?(totalStockAmt-totalCostAmt)/totalStockAmt*100:0)+'%'},
     {k:'Sell-Through เฉลี่ย (90 วัน)', v:nf1.format(overallST)+'%', sub:'รวมทุกสินค้าที่มีสต็อก'}
   ].map(c=>`<div class="kpi"><div class="k">${c.k}</div><div class="v">${c.v}</div><div class="sub">${c.sub}</div></div>`).join('');
+
+  // Stock, Stock Cost and MOH (Months On Hand) per store — sales data has descriptive Store_Name,
+  // the stock file only carries bare store codes, so borrow the name from sales rows where available
+  const storeNameMap={}; S.rows.forEach(r=>{ if(!storeNameMap[r.st]) storeNameMap[r.st]=r.stn; });
+  const soldByStore90={};
+  for(const r of salesAll){ if(inRange(r,winStart90,asOf)) soldByStore90[r.st]=(soldByStore90[r.st]||0)+r.qty; }
+  const stockByStore={};
+  for(const r of stk){
+    const o=stockByStore[r.st] || (stockByStore[r.st]={qty:0,stockAmt:0,costAmt:0});
+    o.qty+=r.qty; o.stockAmt+=r.stockAmt; o.costAmt+=r.costAmt;
+  }
+  const mohOf=(qty,sold90)=>{ const avgMonthly=sold90/3; return avgMonthly>0.0001?qty/avgMonthly:(qty>0?Infinity:0); };
+  const storeMOH=Object.entries(stockByStore).map(([code,o])=>{
+    const sold90=soldByStore90[code]||0, avgMonthly=sold90/3;
+    return {code, name:storeNameMap[code]||code, qty:o.qty, stockAmt:o.stockAmt, costAmt:o.costAmt, avgMonthly, moh:mohOf(o.qty,sold90)};
+  }).sort((a,b)=>b.costAmt-a.costAmt);
+  const totalStoreQty=storeMOH.reduce((a,s)=>a+s.qty,0), totalStoreCost=storeMOH.reduce((a,s)=>a+s.costAmt,0);
+  const totalStoreAvgMonthly=storeMOH.reduce((a,s)=>a+s.avgMonthly,0);
+  const totalMOH=mohOf(totalStoreQty,totalStoreAvgMonthly*3);
+  const storeRowHTML=(label,s,cls)=>{
+    const mohStr = s.moh===Infinity?'∞':nf1.format(s.moh);
+    return `<tr${cls?` class="${cls}"`:''}><td>${label}</td><td>${nf0.format(s.qty)}</td><td>${baht(s.costAmt)}</td>
+      <td>${nf1.format(s.avgMonthly)}</td><td>${mohStr}</td></tr>`;
+  };
+  $('#stockStoreTbl tbody').innerHTML = storeMOH.length ?
+    storeRowHTML('รวมทั้งหมด (Total)', {qty:totalStoreQty,costAmt:totalStoreCost,avgMonthly:totalStoreAvgMonthly,moh:totalMOH}, 'total-row')
+    + storeMOH.map(s=>storeRowHTML(s.code===s.name?esc(s.code):`${esc(s.code)} — ${esc(s.name)}`, s)).join('')
+    : '<tr><td colspan="5" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลสต็อกในตัวกรองที่เลือก</td></tr>';
 
   $('#abcKpis').innerHTML=['A','B','C'].map(cls=>{
     const s=abcSummary[cls];
