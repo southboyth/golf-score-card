@@ -76,6 +76,24 @@ th{position:sticky;top:0;background:var(--card);font-size:11px;color:var(--muted
 .hide{display:none!important}
 .foot{font-size:11px;color:var(--muted);text-align:center;padding:18px 0 0}
 .warnbar{font-size:12px;background:#d977061a;color:var(--warn);border:1px solid #d9770633;border-radius:10px;padding:9px 12px;margin-bottom:12px}
+.msel{position:relative}
+.msel-btn{width:100%;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--text);
+  font-size:13px;padding:0 10px;text-align:left;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:6px}
+.msel-btn:after{content:'▾';color:var(--muted);font-size:10px;flex:0 0 auto}
+.msel-btn-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.msel-panel{position:absolute;top:calc(100% + 6px);left:0;right:0;min-width:240px;background:var(--card);
+  border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);z-index:30;padding:8px;max-height:300px;display:flex;flex-direction:column}
+.msel-panel.hide{display:none!important}
+.msel-search{width:100%;height:34px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);
+  font-size:13px;padding:0 8px;margin-bottom:6px;outline:none}
+.msel-tools{display:flex;gap:6px;margin-bottom:6px}
+.msel-tools button{flex:1;font-size:11px;font-weight:700;border:1px solid var(--line);background:var(--chip);color:var(--brand);border-radius:7px;padding:6px;cursor:pointer}
+.msel-list{overflow:auto;flex:1}
+.msel-item{display:flex;align-items:center;gap:8px;padding:6px 5px;font-size:13px;border-radius:6px;cursor:pointer}
+.msel-item:hover{background:var(--chip)}
+.msel-item input{width:auto;height:auto;flex:0 0 auto}
+.msel-empty{padding:10px;color:var(--muted);font-size:12px;text-align:center}
+.sale-day-note{font-size:11px;color:var(--muted);margin-top:8px}
 </style>
 </head>
 <body>
@@ -116,11 +134,8 @@ th{position:sticky;top:0;background:var(--card);font-size:11px;color:var(--muted
         <button data-v="mtd">เดือนนี้ (MTD)</button>
         <button data-v="ytd" class="active">ปีนี้ (YTD)</button>
       </div>
-      <div class="filters">
+      <div class="filters" id="filters">
         <div class="fld"><label>ณ วันที่ (as of)</label><input type="date" id="refDate"></div>
-        <div class="fld"><label>ช่องทาง</label><select id="fSource"></select></div>
-        <div class="fld"><label>หมวดสินค้า</label><select id="fType"></select></div>
-        <div class="fld"><label>สาขา</label><select id="fStore"></select></div>
       </div>
     </div>
 
@@ -139,8 +154,8 @@ th{position:sticky;top:0;background:var(--card);font-size:11px;color:var(--muted
         <div class="canh sm"><canvas id="channelChart"></canvas></div>
       </div>
       <div class="panel">
-        <div class="chart-title">ยอดขายตามหมวดสินค้า</div>
-        <div class="chart-note">Product Type — Netsale (Excl VAT)</div>
+        <div class="chart-title">ยอดขายตามหมวดสินค้า (Subclass)</div>
+        <div class="chart-note">Product Subclass — Netsale (Excl VAT)</div>
         <div class="canh sm"><canvas id="catChart"></canvas></div>
       </div>
     </div>
@@ -156,6 +171,21 @@ th{position:sticky;top:0;background:var(--card);font-size:11px;color:var(--muted
           <tbody></tbody>
         </table>
       </div>
+    </div>
+
+    <div class="panel">
+      <div class="chart-title" style="margin-bottom:2px">🏪 ยอดขายและ Retail KPI รายสาขา</div>
+      <div class="chart-note" id="storeNote" style="margin-bottom:10px"></div>
+      <div class="tbl-scroll">
+        <table id="storeTbl">
+          <thead><tr>
+            <th>สาขา</th><th>ประเภท</th><th>ยอดขาย ฿</th><th>ชิ้น</th><th>บิล</th>
+            <th>ATV</th><th>UPT</th><th>ASP</th><th>ยอด/วัน</th><th>พยากรณ์สิ้นเดือน</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="sale-day-note">ATV = ยอดขาย/บิล • UPT = ชิ้น/บิล • ASP = ยอดขาย/ชิ้น • ยอด/วัน และพยากรณ์สิ้นเดือน คำนวณจากยอดสะสมเดือนนี้ (MTD) หารด้วยจำนวนวันที่ผ่านมา แล้วประมาณการเต็มเดือน — ไม่ขึ้นกับแท็บ Daily/MTD/YTD ด้านบน</div>
     </div>
 
     <div class="foot" id="foot"></div>
@@ -176,20 +206,33 @@ const ALIAS = {
   cogs:   ['COGS','Cost','Cost_Amt'],
   margin: ['Margin_Value','GP','Gross_Profit','Margin'],
   source: ['Source','Channel','ช่องทาง'],
-  ptype:  ['Product Type','ProductType','Category','หมวด'],
+  brand:  ['Division Code','Brand','แบรนด์'],
   subcls: ['Product Subclass','Subclass','Sub_Class'],
   store:  ['Store_Code','StoreCode','Store'],
   storeN: ['Store_Name','StoreName'],
+  storeT: ['Store.Type','Store_Type','StoreType'],
   model:  ['ModelName','Model_Name','Model','Product_Name','ProductName'],
   gdno:   ['GDNO','Style','StyleCode','SKU'],
   rcpt:   ['Receipt_No','ReceiptNo','Bill_No','Invoice'],
   coll:   ['Current Collection','Collection']
 };
 const NEED = ['date','net']; // minimum required to run
+const STOCK_SOURCE = 'STOCK'; // rows with this Source are inventory snapshots, not sales — excluded here
 
-const S = { rows:[], refDate:null, view:'ytd', filters:{source:'',ptype:'',store:''}, charts:{}, netLabel:'Netsale (Excl VAT)' };
+/* ---------- multi-select filter definitions ---------- */
+const FILTER_DEFS = [
+  {key:'brand',     field:'br',  label:'แบรนด์'},
+  {key:'source',    field:'src', label:'ช่องทาง'},
+  {key:'storeType', field:'stp', label:'ประเภทร้าน'},
+  {key:'subclass',  field:'sc',  label:'หมวดสินค้า (Subclass)'},
+  {key:'store',     field:'st',  label:'สาขา'}
+];
+
+const S = { rows:[], refDate:null, view:'ytd', filters:{}, charts:{}, netLabel:'Netsale (Excl VAT)' };
+FILTER_DEFS.forEach(f=>S.filters[f.key]=new Set());
 const $ = s => document.querySelector(s);
 const CATCOLORS = ['#2563eb','#16a34a','#f59e0b','#db2777','#7c3aed','#0891b2','#dc2626','#65a30d','#9ca3af'];
+const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 /* ---------- formatting ---------- */
 const nf0 = new Intl.NumberFormat('en-US',{maximumFractionDigits:0});
@@ -256,31 +299,40 @@ function parseWorkbook(wb){
   for(const k of NEED) if(map[k]==null) throw new Error('ไม่พบคอลัมน์ที่จำเป็น: '+ALIAS[k][0]);
   S.netLabel = String(headers[map.net]).includes('Inc')?'Netsale (Incl VAT)':'Netsale (Excl VAT)';
   const get=(row,k)=> map[k]!=null?row[map[k]]:null;
-  const out=[];
+  const out=[]; let skippedStock=0;
   for(let r=pick.headerRow+1;r<arr.length;r++){
     const row=arr[r]; if(!row) continue;
+    const src=String(get(row,'source')||'—');
+    if(src.trim().toUpperCase()===STOCK_SOURCE){ skippedStock++; continue; }
     const d=parseDate(get(row,'date')); if(!d) continue;
     const net=Number(get(row,'net'))||0;
     out.push({
       d, k:dayKey(d), y:d.getFullYear(), m:d.getMonth()+1,
       net, qty:Number(get(row,'qty'))||0,
       cogs:Number(get(row,'cogs'))||0, gp:Number(get(row,'margin'))||0,
-      src:String(get(row,'source')||'—'), pt:String(get(row,'ptype')||'—'),
+      src, br:String(get(row,'brand')||'—'),
       sc:String(get(row,'subcls')||'—'), st:String(get(row,'store')||'—'),
       stn:String(get(row,'storeN')||get(row,'store')||'—'),
+      stp:String(get(row,'storeT')||'—'),
       md:String(get(row,'model')||'—'), gd:String(get(row,'gdno')||'—'),
       rc:String(get(row,'rcpt')||''), col:String(get(row,'coll')||'—')
     });
   }
   if(!out.length) throw new Error('อ่านข้อมูลได้ 0 แถว — ตรวจสอบรูปแบบวันที่ในไฟล์');
+  out._skippedStock = skippedStock;
   return out;
 }
 
 /* ---------- persistence (columnar, quota-safe) ---------- */
-const LSKEY='salesdash_v1';
+const LSKEY='salesdash_v2';
 function save(){
   try{
-    localStorage.setItem(LSKEY, JSON.stringify({rows:S.rows.map(r=>[iso(r.d),r.net,r.qty,r.cogs,r.gp,r.src,r.pt,r.sc,r.st,r.stn,r.md,r.gd,r.rc,r.col]),ref:iso(S.refDate)}));
+    localStorage.setItem(LSKEY, JSON.stringify({
+      rows:S.rows.map(r=>[iso(r.d),r.net,r.qty,r.cogs,r.gp,r.src,r.br,r.sc,r.st,r.stn,r.stp,r.md,r.gd,r.rc,r.col]),
+      ref:iso(S.refDate),
+      filters:Object.fromEntries(FILTER_DEFS.map(f=>[f.key,[...S.filters[f.key]]])),
+      netLabel:S.netLabel
+    }));
   }catch(e){ /* quota exceeded -> session only */ }
 }
 function load(){
@@ -288,8 +340,10 @@ function load(){
     const raw=localStorage.getItem(LSKEY); if(!raw) return false;
     const o=JSON.parse(raw);
     S.rows=o.rows.map(a=>{ const d=parseDate(a[0]); return {d,k:dayKey(d),y:d.getFullYear(),m:d.getMonth()+1,
-      net:a[1],qty:a[2],cogs:a[3],gp:a[4],src:a[5],pt:a[6],sc:a[7],st:a[8],stn:a[9],md:a[10],gd:a[11],rc:a[12],col:a[13]};});
+      net:a[1],qty:a[2],cogs:a[3],gp:a[4],src:a[5],br:a[6],sc:a[7],st:a[8],stn:a[9],stp:a[10],md:a[11],gd:a[12],rc:a[13],col:a[14]};});
     S.refDate=parseDate(o.ref);
+    if(o.netLabel) S.netLabel=o.netLabel;
+    if(o.filters){ FILTER_DEFS.forEach(f=>{ S.filters[f.key]=new Set(o.filters[f.key]||[]); }); }
     return S.rows.length>0;
   }catch(e){ return false; }
 }
@@ -297,7 +351,13 @@ function load(){
 /* ---------- aggregation ---------- */
 function filtered(){
   const f=S.filters;
-  return S.rows.filter(r=>(!f.source||r.src===f.source)&&(!f.ptype||r.pt===f.ptype)&&(!f.store||r.st===f.store));
+  return S.rows.filter(r=>
+    (!f.brand.size||f.brand.has(r.br)) &&
+    (!f.source.size||f.source.has(r.src)) &&
+    (!f.storeType.size||f.storeType.has(r.stp)) &&
+    (!f.subclass.size||f.subclass.has(r.sc)) &&
+    (!f.store.size||f.store.has(r.st))
+  );
 }
 function ranges(){
   const ref=S.refDate, y=ref.getFullYear();
@@ -395,7 +455,7 @@ function renderChannel(rowsCur){
     datasets:[{data:e.map(x=>x[1]),backgroundColor:CATCOLORS,borderWidth:0}]},options:opt});
 }
 function renderCat(rowsCur){
-  const g=groupSum(rowsCur,'pt'); const e=topN(g,8);
+  const g=groupSum(rowsCur,'sc'); const e=topN(g,8);
   const opt=baseOpts(); opt.indexAxis='y'; opt.plugins.legend.display=false;
   opt.scales.x.ticks.callback=v=>compact(v); opt.scales.y.ticks.callback=undefined; opt.scales.y.grid={display:false};
   mkChart('catChart',{type:'bar',data:{labels:e.map(x=>x[0]),
@@ -414,6 +474,35 @@ function renderTable(rowsCur,rowsLy){
   }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลในช่วงที่เลือก</td></tr>';
 }
 
+function renderStoreTable(){
+  // Store-level Retail KPI: always scoped to MTD-of-refDate, independent of the Daily/MTD/YTD toggle,
+  // because Sale/Day and Forecast-EOM are inherently monthly run-rate metrics.
+  const ref=S.refDate;
+  const y=ref.getFullYear(), mo=ref.getMonth();
+  const monthStart=new Date(y,mo,1);
+  const daysInMonth=new Date(y,mo+1,0).getDate();
+  const daysElapsed=ref.getDate();
+  const rows=filtered().filter(r=>inRange(r,monthStart,ref));
+  const m={};
+  for(const r of rows){
+    const o=m[r.st] || (m[r.st]={net:0,qty:0,bills:new Set(),stn:r.stn,stp:r.stp});
+    o.net+=r.net; o.qty+=r.qty; if(r.rc) o.bills.add(r.rc);
+  }
+  const list=Object.entries(m).map(([code,o])=>{
+    const bills=o.bills.size;
+    const atv=bills?o.net/bills:0, upt=bills?o.qty/bills:0, asp=o.qty?o.net/o.qty:0;
+    const perDay=daysElapsed?o.net/daysElapsed:0, forecast=perDay*daysInMonth;
+    return {code,stn:o.stn,stp:o.stp,net:o.net,qty:o.qty,bills,atv,upt,asp,perDay,forecast};
+  }).sort((a,b)=>b.net-a.net);
+  $('#storeNote').textContent=`เดือน ${mo+1}/${y} • สะสมถึงวันที่ ${daysElapsed} จาก ${daysInMonth} วัน • ${list.length} สาขาที่มียอดขาย`;
+  $('#storeTbl tbody').innerHTML = list.map(s=>`<tr>
+      <td>${esc(s.code)} — ${esc(s.stn)}</td><td>${esc(s.stp)}</td>
+      <td>${baht(s.net)}</td><td>${nf0.format(s.qty)}</td><td>${nf0.format(s.bills)}</td>
+      <td>${baht(s.atv)}</td><td>${nf1.format(s.upt)}</td><td>${baht(s.asp)}</td>
+      <td>${baht(s.perDay)}</td><td>${baht(s.forecast)}</td>
+    </tr>`).join('') || '<tr><td colspan="10" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลในเดือนนี้</td></tr>';
+}
+
 function renderAll(){
   const f=filtered(); const R=ranges();
   const rc=f.filter(r=>inRange(r,R.cur[0],R.cur[1]));
@@ -422,20 +511,80 @@ function renderAll(){
   cur._days=new Set(rc.map(r=>r.k)).size;
   renderKPIs(cur,ly);
   renderTrend(rc); renderChannel(rc); renderCat(rc); renderTable(rc,rl);
+  renderStoreTable();
   const R2=ranges();
   $('#foot').textContent=`ช่วงข้อมูลที่แสดง: ${iso(R2.cur[0])} → ${iso(R2.cur[1])} • เทียบกับ ${iso(R2.ly[0])} → ${iso(R2.ly[1])} • ${S.rows.length.toLocaleString()} แถว`;
 }
 
-/* ---------- filters UI ---------- */
-function fillSelect(el,label,vals){
-  el.innerHTML=`<option value="">${label} (ทั้งหมด)</option>`+
-    vals.map(v=>`<option value="${v.replace(/"/g,'&quot;')}">${v}</option>`).join('');
+/* ---------- multi-select filters UI ---------- */
+function initFilterUI(){
+  const html = FILTER_DEFS.map(def=>`
+    <div class="fld msel" data-key="${def.key}">
+      <label>${def.label}</label>
+      <button type="button" class="msel-btn" data-panel="msel_${def.key}_panel">
+        <span class="msel-btn-text">ทั้งหมด</span>
+      </button>
+      <div class="msel-panel hide" id="msel_${def.key}_panel" data-key="${def.key}">
+        <input type="text" class="msel-search" placeholder="ค้นหา...">
+        <div class="msel-tools"><button type="button" data-act="all">เลือกทั้งหมด</button><button type="button" data-act="none">ไม่เลือกเลย</button></div>
+        <div class="msel-list" id="msel_${def.key}_list"></div>
+      </div>
+    </div>`).join('');
+  $('#filters').insertAdjacentHTML('beforeend', html);
+
+  document.addEventListener('click', e=>{
+    const tool=e.target.closest('.msel-tools button');
+    if(tool){
+      const panel=tool.closest('.msel-panel'); const key=panel.dataset.key;
+      const boxes=[...panel.querySelectorAll('input[type=checkbox]')].filter(c=>c.closest('.msel-item').style.display!=='none');
+      if(tool.dataset.act==='all'){ boxes.forEach(c=>{ c.checked=true; S.filters[key].add(c.value); }); }
+      else { boxes.forEach(c=>{ c.checked=false; S.filters[key].delete(c.value); }); }
+      updateMselButton(key); renderAll(); save();
+      return;
+    }
+    const btn=e.target.closest('.msel-btn');
+    if(btn){
+      const panel=$('#'+btn.dataset.panel);
+      const willOpen=panel.classList.contains('hide');
+      document.querySelectorAll('.msel-panel').forEach(p=>p.classList.add('hide'));
+      if(willOpen) panel.classList.remove('hide');
+      e.stopPropagation();
+      return;
+    }
+    if(!e.target.closest('.msel-panel')) document.querySelectorAll('.msel-panel').forEach(p=>p.classList.add('hide'));
+  });
+  document.addEventListener('change', e=>{
+    const cb=e.target.closest('input[type=checkbox][data-key]'); if(!cb) return;
+    const key=cb.dataset.key;
+    if(cb.checked) S.filters[key].add(cb.value); else S.filters[key].delete(cb.value);
+    updateMselButton(key); renderAll(); save();
+  });
+  document.addEventListener('input', e=>{
+    const inp=e.target.closest('.msel-search'); if(!inp) return;
+    const panel=inp.closest('.msel-panel'); const q=inp.value.trim().toLowerCase();
+    panel.querySelectorAll('.msel-item').forEach(it=>{ it.style.display = it.textContent.toLowerCase().includes(q) ? '' : 'none'; });
+  });
+}
+function updateMselButton(key){
+  const panel=$('#msel_'+key+'_panel');
+  const btn=panel.closest('.msel').querySelector('.msel-btn-text');
+  const total=panel.querySelectorAll('input[type=checkbox]').length;
+  const n=S.filters[key].size;
+  btn.textContent = (n===0||n===total) ? 'ทั้งหมด' : n+' รายการ';
 }
 function buildFilters(){
-  const uniq=k=>[...new Set(S.rows.map(r=>r[k]))].filter(x=>x&&x!=='—').sort();
-  fillSelect($('#fSource'),'ช่องทาง',uniq('src'));
-  fillSelect($('#fType'),'หมวด',uniq('pt'));
-  fillSelect($('#fStore'),'สาขา',uniq('st'));
+  const storeNameMap={}; S.rows.forEach(r=>{ if(!storeNameMap[r.st]) storeNameMap[r.st]=r.stn; });
+  FILTER_DEFS.forEach(def=>{
+    const vals=[...new Set(S.rows.map(r=>r[def.field]))].filter(x=>x&&x!=='—').sort();
+    const list=$('#msel_'+def.key+'_list');
+    const sel=S.filters[def.key];
+    list.innerHTML = vals.map(v=>{
+      const label = def.key==='store' ? `${v} — ${storeNameMap[v]||''}` : v;
+      const checked = sel.has(v) ? 'checked' : '';
+      return `<label class="msel-item"><input type="checkbox" data-key="${def.key}" value="${esc(v)}" ${checked}><span>${esc(label)}</span></label>`;
+    }).join('') || '<div class="msel-empty">ไม่มีข้อมูล</div>';
+    updateMselButton(def.key);
+  });
 }
 
 /* ---------- boot / events ---------- */
@@ -455,9 +604,14 @@ function handleFile(file){
   rd.onload=e=>{
     try{
       const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});
-      S.rows=parseWorkbook(wb); S.refDate=null;
-      $('#warnbar').classList.add('hide');
-      if(S.rows.every(r=>r.gp===0)) { $('#warnbar').textContent='หมายเหตุ: ไม่พบคอลัมน์กำไร (Margin_Value) — ตัวเลข GP จะเป็น 0'; $('#warnbar').classList.remove('hide'); }
+      const rows=parseWorkbook(wb);
+      S.rows=rows; S.refDate=null;
+      FILTER_DEFS.forEach(f=>S.filters[f.key]=new Set());
+      const notes=[];
+      if(rows.every(r=>r.gp===0)) notes.push('ไม่พบคอลัมน์กำไร (Margin_Value) — ตัวเลข GP จะเป็น 0');
+      if(rows._skippedStock) notes.push(`ข้ามข้อมูลสต็อก ${rows._skippedStock.toLocaleString()} แถว (Source = STOCK) — จะใช้ในโมดูลสต็อกเฟสถัดไป`);
+      if(notes.length){ $('#warnbar').textContent='หมายเหตุ: '+notes.join(' • '); $('#warnbar').classList.remove('hide'); }
+      else $('#warnbar').classList.add('hide');
       showDash(); save();
     }catch(err){ alert('เปิดไฟล์ไม่สำเร็จ: '+err.message); }
   };
@@ -476,9 +630,6 @@ $('#seg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!
   [...$('#seg').children].forEach(x=>x.classList.remove('active')); b.classList.add('active');
   S.view=b.dataset.v; renderAll(); });
 $('#refDate').onchange=e=>{ S.refDate=parseDate(e.target.value)||S.refDate; $('#asof').textContent=$('#asof').textContent.replace(/ณ วันที่ .*/,'ณ วันที่ '+iso(S.refDate)); renderAll(); save(); };
-$('#fSource').onchange=e=>{ S.filters.source=e.target.value; renderAll(); };
-$('#fType').onchange=e=>{ S.filters.ptype=e.target.value; renderAll(); };
-$('#fStore').onchange=e=>{ S.filters.store=e.target.value; renderAll(); };
 $('#clearBtn').onclick=()=>{ if(confirm('ล้างข้อมูลทั้งหมด?')){ localStorage.removeItem(LSKEY); location.reload(); } };
 $('#exportBtn').onclick=()=>{
   html2canvas($('#dash'),{backgroundColor:getComputedStyle(document.body).backgroundColor,scale:2}).then(cv=>{
@@ -487,7 +638,8 @@ $('#exportBtn').onclick=()=>{
 };
 window.matchMedia('(prefers-color-scheme:dark)').addEventListener('change',()=>{ if(!$('#dash').classList.contains('hide')) renderAll(); });
 
-// restore saved session
+// init filter UI, then restore saved session
+initFilterUI();
 if(load()) showDash();
 
 // PWA
