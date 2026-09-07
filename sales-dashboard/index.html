@@ -640,11 +640,14 @@ function renderTrend(rowsCur){
     const bt={},bl={};
     for(const r of filtered()){
       if(r.y===y && r.m<=months) bt[r.m]=(bt[r.m]||0)+r.net;
-      if(r.y===y-1 && r.m<=months) bl[r.m]=(bl[r.m]||0)+r.net;
+      // the current (incomplete) month must compare against the SAME day-of-month cutoff last year,
+      // not the full LY month, or the YoY bar for this month is wildly overstated on the LY side
+      if(r.y===y-1 && r.m<months) bl[r.m]=(bl[r.m]||0)+r.net;
+      if(r.y===y-1 && r.m===months && r.d.getDate()<=ref.getDate()) bl[r.m]=(bl[r.m]||0)+r.net;
     }
     for(let i=1;i<=months;i++){ labels.push(mm[i-1]); ty.push(bt[i]||0); ly.push(bl[i]||0); }
     $('#trendTitle').textContent='ยอดขายรายเดือน YTD เทียบปีก่อน';
-    $('#trendNote').textContent=y+' vs '+(y-1)+' • '+S.netLabel;
+    $('#trendNote').textContent=y+' vs '+(y-1)+' • '+S.netLabel+' • เดือน '+mm[months-1]+' เทียบถึงวันที่ '+ref.getDate()+' ของปีก่อนเท่านั้น (เดือนยังไม่จบ)';
     mkChart('trendChart',{type:'bar',data:{labels,datasets:[
       {label:String(y),data:ty,backgroundColor:CATCOLORS[0],borderRadius:4},
       {label:String(y-1),data:ly,backgroundColor:'#9ca3af',borderRadius:4}
