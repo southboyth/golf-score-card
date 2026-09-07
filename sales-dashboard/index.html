@@ -53,6 +53,7 @@ select:focus,input:focus{border-color:var(--brand);box-shadow:0 0 0 3px #2563eb2
 .kpi .v{font-size:24px;font-weight:850;margin:6px 0 3px;letter-spacing:-.5px}
 @media(max-width:820px){.kpi .v{font-size:20px}}
 .kpi .sub{font-size:12px;color:var(--muted)}
+.kpi .sub>div+div{margin-top:3px}
 .delta{font-weight:800;font-size:12px;padding:2px 7px;border-radius:999px;display:inline-block}
 .delta.up{color:var(--up);background:#16a34a1a}
 .delta.down{color:var(--down);background:#dc26261a}
@@ -176,6 +177,21 @@ tr.total-row td:first-child{color:var(--brand)}
       </div>
     </div>
 
+    <div class="panel" id="promoPanel">
+      <div class="chart-title" style="margin-bottom:2px">🎯 Promotion Tracking</div>
+      <div class="chart-note" id="promoNote" style="margin-bottom:12px"></div>
+      <div class="kpis" id="promoKpis" style="margin-bottom:14px"></div>
+      <div class="tbl-scroll">
+        <table id="promoTbl">
+          <thead><tr>
+            <th>โปรโมชั่น</th><th>ยอดขาย ฿</th><th>ชิ้น</th><th>บิล</th>
+            <th>ส่วนลดรวม</th><th>ส่วนลด %</th><th>สัดส่วน</th><th>YoY</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
     <div class="panel">
       <div class="chart-title" style="margin-bottom:2px">🏪 ยอดขายและ Retail KPI รายสาขา</div>
       <div class="chart-note" id="storeNote" style="margin-bottom:10px"></div>
@@ -185,7 +201,7 @@ tr.total-row td:first-child{color:var(--brand)}
         <table id="storeTypeTbl">
           <thead><tr>
             <th>ประเภทร้าน</th><th>จำนวนสาขา</th><th>ยอดขาย ฿</th><th>ชิ้น</th><th>บิล</th>
-            <th>ATV</th><th>UPT</th><th>ASP</th><th>ยอด/วัน</th><th>พยากรณ์สิ้นเดือน</th>
+            <th>ATV</th><th>UPT</th><th>ASP</th><th>ยอด/วัน</th><th>พยากรณ์สิ้นเดือน</th><th>MoM</th><th>YoY</th>
           </tr></thead>
           <tbody></tbody>
         </table>
@@ -196,12 +212,12 @@ tr.total-row td:first-child{color:var(--brand)}
         <table id="storeTbl">
           <thead><tr>
             <th>สาขา</th><th>ประเภท</th><th>ยอดขาย ฿</th><th>ชิ้น</th><th>บิล</th>
-            <th>ATV</th><th>UPT</th><th>ASP</th><th>ยอด/วัน</th><th>พยากรณ์สิ้นเดือน</th>
+            <th>ATV</th><th>UPT</th><th>ASP</th><th>ยอด/วัน</th><th>พยากรณ์สิ้นเดือน</th><th>MoM</th><th>YoY</th>
           </tr></thead>
           <tbody></tbody>
         </table>
       </div>
-      <div class="sale-day-note">ATV = ยอดขาย/บิล • UPT = ชิ้น/บิล • ASP = ยอดขาย/ชิ้น • ยอด/วัน และพยากรณ์สิ้นเดือน คำนวณจากยอดสะสมเดือนนี้ (MTD) หารด้วยจำนวนวันที่ผ่านมา แล้วประมาณการเต็มเดือน — ไม่ขึ้นกับแท็บ Daily/MTD/YTD ด้านบน</div>
+      <div class="sale-day-note">ATV = ยอดขาย/บิล • UPT = ชิ้น/บิล • ASP = ยอดขาย/ชิ้น • ยอด/วัน และพยากรณ์สิ้นเดือน คำนวณจากยอดสะสมเดือนนี้ (MTD) หารด้วยจำนวนวันที่ผ่านมา แล้วประมาณการเต็มเดือน • MoM/YoY เทียบยอดขาย MTD กับเดือนก่อน/ปีก่อนที่จำนวนวันเท่ากัน — ทั้งหมดนี้ไม่ขึ้นกับแท็บ Daily/MTD/YTD ด้านบน</div>
     </div>
 
     <div class="foot" id="foot"></div>
@@ -230,7 +246,10 @@ const ALIAS = {
   model:  ['ModelName','Model_Name','Model','Product_Name','ProductName'],
   gdno:   ['GDNO','Style','StyleCode','SKU'],
   rcpt:   ['Receipt_No','ReceiptNo','Bill_No','Invoice'],
-  coll:   ['Current Collection','Collection']
+  coll:   ['Current Collection','Collection'],
+  promoCode: ['Promotion_Code','PromotionCode'],
+  promoName: ['Promotion_Name','PromotionName'],
+  discAmt:   ['Discount_Value','Discount_Amt']
 };
 const NEED = ['date','net']; // minimum required to run
 const STOCK_SOURCE = 'STOCK'; // rows with this Source are inventory snapshots, not sales — excluded here
@@ -260,12 +279,13 @@ function compact(v){ v=v||0; const a=Math.abs(v);
   if(a>=1e3)return '฿'+nf1.format(v/1e3)+'K';
   return '฿'+nf0.format(v); }
 function pct(v){ return (v>=0?'+':'')+nf1.format(v)+'%'; }
-function deltaHTML(cur,prev){
-  if(prev===0||prev==null){ return cur>0?'<span class="delta up">ใหม่</span>':'<span class="delta flat">—</span>'; }
+function deltaHTML(cur,prev,label){
+  const pfx=label?label+' ':'';
+  if(prev===0||prev==null){ return cur>0?`<span class="delta up">${pfx}ใหม่</span>`:`<span class="delta flat">${pfx}—</span>`; }
   const d=(cur-prev)/prev*100;
   const cls=d>0.05?'up':d<-0.05?'down':'flat';
   const arrow=d>0.05?'▲':d<-0.05?'▼':'▬';
-  return `<span class="delta ${cls}">${arrow} ${pct(d)}</span>`;
+  return `<span class="delta ${cls}">${pfx}${arrow} ${pct(d)}</span>`;
 }
 const theme = () => window.matchMedia('(prefers-color-scheme:dark)').matches;
 const axisColor = () => theme()?'#94a3b8':'#6b7280';
@@ -285,6 +305,13 @@ const parseDate = v => {
   return null;
 };
 const shiftYear = (d,n) => new Date(d.getFullYear()+n, d.getMonth(), d.getDate());
+// shift by n months, clamping the day into the target month (e.g. Mar 31 - 1 month -> Feb 28/29)
+const addMonthsClamp = (d,n) => {
+  const total=d.getFullYear()*12+d.getMonth()+n;
+  const y=Math.floor(total/12), m=((total%12)+12)%12;
+  const daysInTarget=new Date(y,m+1,0).getDate();
+  return new Date(y,m,Math.min(d.getDate(),daysInTarget));
+};
 const dayKey = d => d.getFullYear()*10000+(d.getMonth()+1)*100+d.getDate();
 
 /* ---------- parse workbook ---------- */
@@ -336,7 +363,9 @@ function parseWorkbook(wb){
       stn:String(get(row,'storeN')||get(row,'store')||'—'),
       stp:String(get(row,'storeT')||'—'),
       md:String(get(row,'model')||'—'), gd:String(get(row,'gdno')||'—'),
-      rc:String(get(row,'rcpt')||''), col:String(get(row,'coll')||'—')
+      rc:String(get(row,'rcpt')||''), col:String(get(row,'coll')||'—'),
+      pc:String(get(row,'promoCode')||''), pn:String(get(row,'promoName')||''),
+      da:Number(get(row,'discAmt'))||0
     });
   }
   if(!out.length) throw new Error('อ่านข้อมูลได้ 0 แถว — ตรวจสอบรูปแบบวันที่ในไฟล์');
@@ -345,11 +374,11 @@ function parseWorkbook(wb){
 }
 
 /* ---------- persistence (columnar, quota-safe) ---------- */
-const LSKEY='salesdash_v2';
+const LSKEY='salesdash_v3';
 function save(){
   try{
     localStorage.setItem(LSKEY, JSON.stringify({
-      rows:S.rows.map(r=>[iso(r.d),r.net,r.qty,r.cogs,r.gp,r.src,r.br,r.sc,r.st,r.stn,r.stp,r.md,r.gd,r.rc,r.col]),
+      rows:S.rows.map(r=>[iso(r.d),r.net,r.qty,r.cogs,r.gp,r.src,r.br,r.sc,r.st,r.stn,r.stp,r.md,r.gd,r.rc,r.col,r.pc,r.pn,r.da]),
       ref:iso(S.refDate),
       filters:Object.fromEntries(FILTER_DEFS.map(f=>[f.key,[...S.filters[f.key]]])),
       netLabel:S.netLabel
@@ -361,7 +390,7 @@ function load(){
     const raw=localStorage.getItem(LSKEY); if(!raw) return false;
     const o=JSON.parse(raw);
     S.rows=o.rows.map(a=>{ const d=parseDate(a[0]); return {d,k:dayKey(d),y:d.getFullYear(),m:d.getMonth()+1,
-      net:a[1],qty:a[2],cogs:a[3],gp:a[4],src:a[5],br:a[6],sc:a[7],st:a[8],stn:a[9],stp:a[10],md:a[11],gd:a[12],rc:a[13],col:a[14]};});
+      net:a[1],qty:a[2],cogs:a[3],gp:a[4],src:a[5],br:a[6],sc:a[7],st:a[8],stn:a[9],stp:a[10],md:a[11],gd:a[12],rc:a[13],col:a[14],pc:a[15]||'',pn:a[16]||'',da:a[17]||0};});
     S.refDate=parseDate(o.ref);
     if(o.netLabel) S.netLabel=o.netLabel;
     if(o.filters){ FILTER_DEFS.forEach(f=>{ S.filters[f.key]=new Set(o.filters[f.key]||[]); }); }
@@ -381,10 +410,19 @@ function filtered(){
   );
 }
 function ranges(){
+  // lm (last month) is meaningful only for Daily/MTD — a "last month" cut for YTD has no
+  // standard definition, so it's omitted (null) there and the KPI cards fall back to YoY only.
   const ref=S.refDate, y=ref.getFullYear();
-  if(S.view==='daily') return {cur:[ref,ref], ly:[shiftYear(ref,-1),shiftYear(ref,-1)]};
-  if(S.view==='mtd'){ const s=new Date(y,ref.getMonth(),1); return {cur:[s,ref], ly:[shiftYear(s,-1),shiftYear(ref,-1)]}; }
-  const s=new Date(y,0,1); return {cur:[s,ref], ly:[shiftYear(s,-1),shiftYear(ref,-1)]};
+  if(S.view==='daily'){
+    const lmRef=addMonthsClamp(ref,-1);
+    return {cur:[ref,ref], ly:[shiftYear(ref,-1),shiftYear(ref,-1)], lm:[lmRef,lmRef]};
+  }
+  if(S.view==='mtd'){
+    const s=new Date(y,ref.getMonth(),1);
+    const lmRef=addMonthsClamp(ref,-1), lmStart=new Date(lmRef.getFullYear(),lmRef.getMonth(),1);
+    return {cur:[s,ref], ly:[shiftYear(s,-1),shiftYear(ref,-1)], lm:[lmStart,lmRef]};
+  }
+  const s=new Date(y,0,1); return {cur:[s,ref], ly:[shiftYear(s,-1),shiftYear(ref,-1)], lm:null};
 }
 function inRange(r,a,b){ return r.k>=dayKey(a)&&r.k<=dayKey(b); }
 function agg(rows){
@@ -397,19 +435,28 @@ function groupSum(rows,key){ const m={}; for(const r of rows){ m[r[key]]=(m[r[ke
 function topN(obj,n){ return Object.entries(obj).sort((a,b)=>b[1]-a[1]).slice(0,n); }
 
 /* ---------- render ---------- */
-function renderKPIs(cur,ly){
-  const rows=[
-    {k:'ยอดขาย ('+S.netLabel.replace('Netsale ','')+')', v:baht(cur.net), sub:'ปีก่อน '+compact(ly.net), d:deltaHTML(cur.net,ly.net)},
-    {k:'จำนวนชิ้น', v:nf0.format(cur.qty)+' ชิ้น', sub:'ปีก่อน '+nf0.format(ly.qty), d:deltaHTML(cur.qty,ly.qty)},
-    {k:'กำไรขั้นต้น (GP)', v:baht(cur.gp), sub:'GP '+nf1.format(cur.gppct)+'%', d:deltaHTML(cur.gp,ly.gp)},
-    {k:'ราคาขายเฉลี่ย/ชิ้น (ASP)', v:baht(cur.asp), sub:'ปีก่อน '+compact(ly.asp), d:deltaHTML(cur.asp,ly.asp)},
-    {k:'จำนวนบิล', v:nf0.format(cur.nbills), sub:'ปีก่อน '+nf0.format(ly.nbills), d:deltaHTML(cur.nbills,ly.nbills)},
-    {k:'ยอดเฉลี่ย/บิล', v:baht(cur.avgbill), sub:'ปีก่อน '+compact(ly.avgbill), d:deltaHTML(cur.avgbill,ly.avgbill)},
-    {k:'ต้นทุนขาย (COGS)', v:baht(cur.cogs), sub:'ปีก่อน '+compact(ly.cogs), d:deltaHTML(cur.cogs,ly.cogs)},
-    {k:'จำนวนวันมียอดขาย', v:nf0.format(cur._days||0), sub:'เฉลี่ย/วัน '+compact(cur._days?cur.net/cur._days:0), d:''}
+function renderKPIs(cur,ly,lm){
+  // metric key -> formatter, used to build both the YoY line (always) and the MoM line (Daily/MTD only)
+  const defs=[
+    {k:'ยอดขาย ('+S.netLabel.replace('Netsale ','')+')', f:'net', fmt:compact},
+    {k:'จำนวนชิ้น', f:'qty', fmt:nf0.format},
+    {k:'กำไรขั้นต้น (GP)', f:'gp', fmt:compact, extra:'GP '+nf1.format(cur.gppct)+'%'},
+    {k:'ราคาขายเฉลี่ย/ชิ้น (ASP)', f:'asp', fmt:compact},
+    {k:'จำนวนบิล', f:'nbills', fmt:nf0.format},
+    {k:'ยอดเฉลี่ย/บิล', f:'avgbill', fmt:compact},
+    {k:'ต้นทุนขาย (COGS)', f:'cogs', fmt:compact}
   ];
-  $('#kpis').innerHTML=rows.map(r=>`<div class="kpi"><div class="k">${r.k}</div><div class="v">${r.v}</div>
-    <div class="sub">${r.sub} ${r.d}</div></div>`).join('');
+  const valFmt={net:baht,qty:v=>nf0.format(v)+' ชิ้น',gp:baht,asp:baht,nbills:nf0.format,avgbill:baht,cogs:baht};
+  const cards=defs.map(d=>{
+    const v=valFmt[d.f](cur[d.f]);
+    const yoyLine=`<div>ปีก่อน ${d.fmt(ly[d.f])} ${deltaHTML(cur[d.f],ly[d.f],'YoY')}</div>`;
+    const momLine=lm ? `<div>เดือนก่อน ${d.fmt(lm[d.f])} ${deltaHTML(cur[d.f],lm[d.f],'MoM')}</div>` : '';
+    const extra=d.extra?`<div>${d.extra}</div>`:'';
+    return `<div class="kpi"><div class="k">${d.k}</div><div class="v">${v}</div><div class="sub">${extra}${yoyLine}${momLine}</div></div>`;
+  });
+  cards.push(`<div class="kpi"><div class="k">จำนวนวันมียอดขาย</div><div class="v">${nf0.format(cur._days||0)}</div>
+    <div class="sub"><div>เฉลี่ย/วัน ${compact(cur._days?cur.net/cur._days:0)}</div></div></div>`);
+  $('#kpis').innerHTML=cards.join('');
 }
 function mkChart(id,cfg){ if(S.charts[id]) S.charts[id].destroy(); S.charts[id]=new Chart($('#'+id),cfg); }
 const baseOpts = () => ({responsive:true,maintainAspectRatio:false,
@@ -495,17 +542,60 @@ function renderTable(rowsCur,rowsLy){
   }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลในช่วงที่เลือก</td></tr>';
 }
 
+function renderPromo(rowsCur, rowsLy){
+  const withPromo=rowsCur.filter(r=>r.pc||r.pn);
+  const totalNet=rowsCur.reduce((a,r)=>a+r.net,0);
+  const promoNet=withPromo.reduce((a,r)=>a+r.net,0);
+  const promoDisc=withPromo.reduce((a,r)=>a+r.da,0);
+  const promoShare=totalNet?promoNet/totalNet*100:0;
+  // discount % approximated against pre-discount value (net + discount), since only the post-discount
+  // net sale and the discount amount are available per row
+  const avgDiscPct=(promoNet+promoDisc)?promoDisc/(promoNet+promoDisc)*100:0;
+
+  const keyOf=r=>(r.pc||'')+'|'+(r.pn||r.pc||'ไม่ระบุชื่อ');
+  const cur={};
+  for(const r of withPromo){
+    const k=keyOf(r);
+    const o=cur[k] || (cur[k]={net:0,qty:0,disc:0,bills:new Set(),name:r.pn||r.pc});
+    o.net+=r.net; o.qty+=r.qty; o.disc+=r.da; if(r.rc) o.bills.add(r.rc);
+  }
+  const lyNet={};
+  for(const r of rowsLy){ if(!(r.pc||r.pn)) continue; const k=keyOf(r); lyNet[k]=(lyNet[k]||0)+r.net; }
+  const distinctPromos=Object.keys(cur).length;
+
+  $('#promoNote').textContent=`${withPromo.length.toLocaleString()} จาก ${rowsCur.length.toLocaleString()} แถวมีโปรโมชั่น (${nf1.format(promoShare)}% ของยอดขาย) • ${distinctPromos} โปรโมชั่นที่มียอดขายในช่วงที่เลือก • ${S.netLabel}`;
+
+  $('#promoKpis').innerHTML=[
+    {k:'ยอดขายที่มีโปรโมชั่น', v:baht(promoNet), sub:nf1.format(promoShare)+'% ของยอดขายรวม'},
+    {k:'ยอดขายไม่มีโปรโมชั่น', v:baht(totalNet-promoNet), sub:nf1.format(100-promoShare)+'% ของยอดขายรวม'},
+    {k:'ส่วนลดรวม', v:baht(promoDisc), sub:'เฉลี่ย '+nf1.format(avgDiscPct)+'% ของยอดก่อนลด'},
+    {k:'จำนวนโปรโมชั่นที่ใช้งาน', v:nf0.format(distinctPromos), sub:'มียอดขายในช่วงที่เลือก'}
+  ].map(c=>`<div class="kpi"><div class="k">${c.k}</div><div class="v">${c.v}</div><div class="sub">${c.sub}</div></div>`).join('');
+
+  const top=Object.entries(cur).sort((a,b)=>b[1].net-a[1].net).slice(0,15);
+  $('#promoTbl tbody').innerHTML=top.map(([k,o])=>{
+    const bills=o.bills.size;
+    const discPct=(o.net+o.disc)?o.disc/(o.net+o.disc)*100:0;
+    const share=promoNet?o.net/promoNet*100:0;
+    const code=k.split('|')[0];
+    const label=code?`${esc(code)} — ${esc(o.name)}`:esc(o.name);
+    return `<tr><td>${label}</td><td>${baht(o.net)}</td><td>${nf0.format(o.qty)}</td><td>${nf0.format(bills)}</td>
+      <td>${baht(o.disc)}</td><td>${nf1.format(discPct)}%</td><td>${nf1.format(share)}%</td>
+      <td>${deltaHTML(o.net,lyNet[k]||0)}</td></tr>`;
+  }).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลโปรโมชั่นในช่วงที่เลือก</td></tr>';
+}
+
 function kpiRow(o, daysElapsed, daysInMonth){
   const bills=o.bills.size;
   const atv=bills?o.net/bills:0, upt=bills?o.qty/bills:0, asp=o.qty?o.net/o.qty:0;
   const perDay=daysElapsed?o.net/daysElapsed:0, forecast=perDay*daysInMonth;
   return {...o, bills, atv, upt, asp, perDay, forecast};
 }
-function kpiRowHTML(labelHTML, extraTd, r, rowClass){
+function kpiRowHTML(labelHTML, extraTd, r, rowClass, trailingTd){
   return `<tr${rowClass?` class="${rowClass}"`:''}><td>${labelHTML}</td>${extraTd}
       <td>${baht(r.net)}</td><td>${nf0.format(r.qty)}</td><td>${nf0.format(r.bills)}</td>
       <td>${baht(r.atv)}</td><td>${nf1.format(r.upt)}</td><td>${baht(r.asp)}</td>
-      <td>${baht(r.perDay)}</td><td>${baht(r.forecast)}</td>
+      <td>${baht(r.perDay)}</td><td>${baht(r.forecast)}</td>${trailingTd||''}
     </tr>`;
 }
 
@@ -517,7 +607,18 @@ function renderStoreTable(){
   const monthStart=new Date(y,mo,1);
   const daysInMonth=new Date(y,mo+1,0).getDate();
   const daysElapsed=ref.getDate();
-  const rows=filtered().filter(r=>inRange(r,monthStart,ref));
+  const flt=filtered();
+  const rows=flt.filter(r=>inRange(r,monthStart,ref));
+
+  // MoM/YoY comparison periods, using the same "same day-of-month cutoff" logic as the main KPI cards
+  const lmRef=addMonthsClamp(ref,-1), lmStart=new Date(lmRef.getFullYear(),lmRef.getMonth(),1);
+  const lyStart=shiftYear(monthStart,-1), lyRef=shiftYear(ref,-1);
+  const rowsLm=flt.filter(r=>inRange(r,lmStart,lmRef));
+  const rowsLy=flt.filter(r=>inRange(r,lyStart,lyRef));
+  const netByStoreLm=groupSum(rowsLm,'st'), netByStoreLy=groupSum(rowsLy,'st');
+  const netByTypeLm=groupSum(rowsLm,'stp'), netByTypeLy=groupSum(rowsLy,'stp');
+  const totalLm=rowsLm.reduce((a,r)=>a+r.net,0), totalLy=rowsLy.reduce((a,r)=>a+r.net,0);
+  const cmpTd=(net,lm,ly)=>`<td>${deltaHTML(net,lm)}</td><td>${deltaHTML(net,ly)}</td>`;
 
   // per-store
   const byStore={};
@@ -540,28 +641,30 @@ function renderStoreTable(){
     .sort((a,b)=>b.net-a.net);
   const totalRow=kpiRow(total,daysElapsed,daysInMonth);
 
-  $('#storeNote').textContent=`เดือน ${mo+1}/${y} • สะสมถึงวันที่ ${daysElapsed} จาก ${daysInMonth} วัน • ${storeList.length} สาขาที่มียอดขาย`;
+  $('#storeNote').textContent=`เดือน ${mo+1}/${y} • สะสมถึงวันที่ ${daysElapsed} จาก ${daysInMonth} วัน • ${storeList.length} สาขาที่มียอดขาย • MoM เทียบ ${iso(lmStart)}→${iso(lmRef)} • YoY เทียบ ${iso(lyStart)}→${iso(lyRef)}`;
 
   $('#storeTypeTbl tbody').innerHTML = rows.length ?
-    kpiRowHTML('รวมทั้งหมด (Total)', `<td>${nf0.format(total.storeSet.size)}</td>`, totalRow, 'total-row')
-    + typeList.map(t=>kpiRowHTML(esc(t.tp), `<td>${nf0.format(t.nstores)}</td>`, t)).join('')
-    : '<tr><td colspan="10" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลในเดือนนี้</td></tr>';
+    kpiRowHTML('รวมทั้งหมด (Total)', `<td>${nf0.format(total.storeSet.size)}</td>`, totalRow, 'total-row', cmpTd(total.net,totalLm,totalLy))
+    + typeList.map(t=>kpiRowHTML(esc(t.tp), `<td>${nf0.format(t.nstores)}</td>`, t, null, cmpTd(t.net,netByTypeLm[t.tp]||0,netByTypeLy[t.tp]||0))).join('')
+    : '<tr><td colspan="12" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลในเดือนนี้</td></tr>';
 
-  $('#storeTbl tbody').innerHTML = storeList.map(s=>kpiRowHTML(`${esc(s.code)} — ${esc(s.stn)}`, `<td>${esc(s.stp)}</td>`, s)).join('')
-    || '<tr><td colspan="10" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลในเดือนนี้</td></tr>';
+  $('#storeTbl tbody').innerHTML = storeList.map(s=>kpiRowHTML(`${esc(s.code)} — ${esc(s.stn)}`, `<td>${esc(s.stp)}</td>`, s, null, cmpTd(s.net,netByStoreLm[s.code]||0,netByStoreLy[s.code]||0))).join('')
+    || '<tr><td colspan="12" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลในเดือนนี้</td></tr>';
 }
 
 function renderAll(){
   const f=filtered(); const R=ranges();
   const rc=f.filter(r=>inRange(r,R.cur[0],R.cur[1]));
   const rl=f.filter(r=>inRange(r,R.ly[0],R.ly[1]));
-  const cur=agg(rc), ly=agg(rl);
+  const rm=R.lm ? f.filter(r=>inRange(r,R.lm[0],R.lm[1])) : null;
+  const cur=agg(rc), ly=agg(rl), lm=rm?agg(rm):null;
   cur._days=new Set(rc.map(r=>r.k)).size;
-  renderKPIs(cur,ly);
-  renderTrend(rc); renderChannel(rc); renderCat(rc); renderTable(rc,rl);
+  renderKPIs(cur,ly,lm);
+  renderTrend(rc); renderChannel(rc); renderCat(rc); renderTable(rc,rl); renderPromo(rc,rl);
   renderStoreTable();
-  const R2=ranges();
-  $('#foot').textContent=`ช่วงข้อมูลที่แสดง: ${iso(R2.cur[0])} → ${iso(R2.cur[1])} • เทียบกับ ${iso(R2.ly[0])} → ${iso(R2.ly[1])} • ${S.rows.length.toLocaleString()} แถว`;
+  $('#foot').textContent=`ช่วงข้อมูลที่แสดง: ${iso(R.cur[0])} → ${iso(R.cur[1])} • เทียบปีก่อน ${iso(R.ly[0])} → ${iso(R.ly[1])}`
+    + (R.lm?` • เทียบเดือนก่อน ${iso(R.lm[0])} → ${iso(R.lm[1])}`:'')
+    + ` • ${S.rows.length.toLocaleString()} แถว`;
 }
 
 /* ---------- multi-select filters UI ---------- */
