@@ -257,10 +257,15 @@ const gridColor = () => theme()?'#23304633':'#e5e7eb';
 
 /* ---------- date helpers ---------- */
 const iso = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+// SheetJS decodes date-only Excel cells to a Date built from local calendar components, but under
+// some UTC offsets (e.g. UTC+7) the conversion lands a few seconds short of local midnight —
+// enough to read as the previous day. Snap to the nearest UTC day boundary before extracting the
+// calendar date so this sub-second drift can't shift the day, in any viewer's timezone.
+const snapToDay = d => { const s=new Date(Math.round(d.getTime()/86400000)*86400000); return new Date(s.getUTCFullYear(), s.getUTCMonth(), s.getUTCDate()); };
 const parseDate = v => {
-  if(v instanceof Date) return isNaN(v)?null:v;
+  if(v instanceof Date) return isNaN(v)?null:snapToDay(v);
   if(typeof v==='number'){ const o=XLSX.SSF.parse_date_code(v); return o?new Date(o.y,o.m-1,o.d):null; }
-  if(typeof v==='string'){ const d=new Date(v.replace(/\//g,'-')); return isNaN(d)?null:d; }
+  if(typeof v==='string'){ const d=new Date(v.replace(/\//g,'-')); return isNaN(d)?null:snapToDay(d); }
   return null;
 };
 const shiftYear = (d,n) => new Date(d.getFullYear()+n, d.getMonth(), d.getDate());
