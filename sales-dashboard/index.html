@@ -1039,9 +1039,10 @@ function handleStockFile(file){
       const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
       const rows=parseStockWorkbook(wb);
       S.stockRows=rows; S.stockAsOf=rows._asOf;
-      // scope to NATGEO as requested — easily changed anytime via the แบรนด์ filter above
+      // scope to NATGEO + GOODR as requested — easily changed anytime via the แบรนด์ filter above
       const brands=new Set(rows.map(r=>r.br));
-      if(brands.has('NATGEO')) S.filters.brand=new Set(['NATGEO']);
+      const targetBrands=['NATGEO','GOODR'].filter(b=>brands.has(b));
+      if(targetBrands.length) S.filters.brand=new Set(targetBrands);
       buildFilters(); renderAll(); save();
     }catch(err){ alert('เปิดไฟล์สต็อกไม่สำเร็จ: '+err.message); }
   };
