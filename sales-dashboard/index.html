@@ -110,7 +110,9 @@ tr.total-row td:first-child{color:var(--brand)}
     </div>
     <div class="toolbar">
       <input type="file" id="file" accept=".xlsx,.xls,.csv" class="hide">
-      <button class="btn primary" id="uploadBtn">⬆️ อัปโหลดไฟล์</button>
+      <button class="btn primary" id="uploadBtn">⬆️ อัปโหลดไฟล์ยอดขาย</button>
+      <input type="file" id="stockFile" accept=".xlsx,.xls,.csv" class="hide">
+      <button class="btn hide" id="uploadStockBtn">📦 อัปโหลดไฟล์สต็อก</button>
       <button class="btn hide" id="exportBtn">🖼️ บันทึกรูป</button>
       <button class="btn hide" id="clearBtn">🗑️ ล้างข้อมูล</button>
     </div>
@@ -220,6 +222,45 @@ tr.total-row td:first-child{color:var(--brand)}
       <div class="sale-day-note">ATV = ยอดขาย/บิล • UPT = ชิ้น/บิล • ASP = ยอดขาย/ชิ้น • ยอด/วัน และพยากรณ์สิ้นเดือน คำนวณจากยอดสะสมเดือนนี้ (MTD) หารด้วยจำนวนวันที่ผ่านมา แล้วประมาณการเต็มเดือน • MoM/YoY เทียบยอดขาย MTD กับเดือนก่อน/ปีก่อนที่จำนวนวันเท่ากัน — ทั้งหมดนี้ไม่ขึ้นกับแท็บ Daily/MTD/YTD ด้านบน</div>
     </div>
 
+    <div class="panel" id="stockPanel">
+      <div class="chart-title" style="margin-bottom:2px">📦 Stock &amp; Sell-Through</div>
+      <div class="chart-note" id="stockNote" style="margin-bottom:12px"></div>
+
+      <div id="stockEmpty">
+        <div class="empty" style="padding:20px 8px">ยังไม่ได้อัปโหลดไฟล์สต็อก — กด "📦 อัปโหลดไฟล์สต็อก" ด้านบนเพื่อเริ่มวิเคราะห์ Sell-Through, Weeks of Cover และ ABC Analysis</div>
+      </div>
+
+      <div id="stockBody" class="hide">
+        <div class="kpis" id="stockKpis" style="margin-bottom:16px"></div>
+
+        <div class="subhead">ABC Analysis (ตามมูลค่าขาย 90 วันล่าสุด)</div>
+        <div class="kpis" id="abcKpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px"></div>
+
+        <div class="subhead">⚠️ สินค้าต้องจับตา (ใกล้หมด / ขายช้า-ค้างสต็อก)</div>
+        <div class="tbl-scroll" style="margin-bottom:16px">
+          <table id="alertTbl">
+            <thead><tr>
+              <th>สินค้า</th><th>หมวด</th><th>สถานะ</th><th>สต็อกคงเหลือ</th><th>มูลค่าสต็อก</th>
+              <th>ขาย 90 วัน</th><th>Sell-Through</th><th>ยอดขาย/สัปดาห์</th><th>Weeks of Cover</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="subhead">รายละเอียดสต็อกทั้งหมด</div>
+        <div class="tbl-scroll">
+          <table id="stockTbl">
+            <thead><tr>
+              <th>สินค้า</th><th>หมวด</th><th>ABC</th><th>สถานะ</th><th>สต็อกคงเหลือ</th><th>มูลค่าสต็อก</th>
+              <th>ขาย 90 วัน</th><th>Sell-Through</th><th>ยอดขาย/สัปดาห์</th><th>Weeks of Cover</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="sale-day-note">Sell-Through % = ขาย 90 วันล่าสุด ÷ (ขาย 90 วันล่าสุด + สต็อกคงเหลือ) • Weeks of Cover = สต็อกคงเหลือ ÷ ยอดขายเฉลี่ย/สัปดาห์ (เฉลี่ย 8 สัปดาห์ล่าสุด) • คำนวณ ณ วันที่สแนปช็อตสต็อก ไม่ขึ้นกับแท็บ Daily/MTD/YTD แต่ขึ้นกับตัวกรองแบรนด์/หมวดสินค้าด้านบน</div>
+      </div>
+    </div>
+
     <div class="foot" id="foot"></div>
   </div>
 </div>
@@ -263,7 +304,7 @@ const FILTER_DEFS = [
   {key:'store',     field:'st',  label:'สาขา'}
 ];
 
-const S = { rows:[], refDate:null, view:'ytd', filters:{}, charts:{}, netLabel:'Netsale (Excl VAT)' };
+const S = { rows:[], refDate:null, view:'ytd', filters:{}, charts:{}, netLabel:'Netsale (Excl VAT)', stockRows:[], stockAsOf:null };
 FILTER_DEFS.forEach(f=>S.filters[f.key]=new Set());
 const $ = s => document.querySelector(s);
 const CATCOLORS = ['#2563eb','#16a34a','#f59e0b','#db2777','#7c3aed','#0891b2','#dc2626','#65a30d','#9ca3af'];
@@ -313,6 +354,14 @@ const addMonthsClamp = (d,n) => {
   return new Date(y,m,Math.min(d.getDate(),daysInTarget));
 };
 const dayKey = d => d.getFullYear()*10000+(d.getMonth()+1)*100+d.getDate();
+// Stock file dates come as plain "DD/MM/YYYY" text (not Excel date cells), so parse the
+// components directly rather than going through Date() string parsing, which would assume M/D/Y.
+const parseDMY = v => {
+  const m=String(v||'').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(!m) return null;
+  const d=new Date(+m[3], +m[2]-1, +m[1]);
+  return isNaN(d)?null:d;
+};
 
 /* ---------- parse workbook ---------- */
 function pickSheet(wb){
@@ -373,6 +422,68 @@ function parseWorkbook(wb){
   return out;
 }
 
+/* ---------- parse stock card workbook ---------- */
+const STOCK_ALIAS = {
+  date:   ['Stock_Date','StockDate'],
+  store:  ['Store','Store_Code','StoreCode'],
+  gdno:   ['GDNO','Style','StyleCode','SKU'],
+  model:  ['ModelName','Model_Name','Model'],
+  brand:  ['Division Code','Brand','แบรนด์'],
+  subcls: ['Product Subclass','Subclass','Sub_Class'],
+  qty:    ['Stock available Qty','Stock_Qty','StockQty'],
+  costUnit:  ['Cost/Unit','Cost_Per_Unit'],
+  retail:    ['Retail Price','Retail_Price'],
+  stockAmt:  ['Stock Amount (Current Price)','Stock_Amount'],
+  costAmt:   ['Cost Amount','Cost_Amt_Stock']
+};
+const STOCK_NEED=['date','store','gdno','qty'];
+function pickStockSheet(wb){
+  let best=null,bestScore=-1;
+  for(const name of wb.SheetNames){
+    const ws=wb.Sheets[name];
+    const arr=XLSX.utils.sheet_to_json(ws,{header:1,range:0,defval:null});
+    for(let r=0;r<Math.min(8,arr.length);r++){
+      const cells=(arr[r]||[]).map(x=>String(x||'').trim());
+      let score=0;
+      for(const k of STOCK_NEED) if(STOCK_ALIAS[k].some(a=>cells.includes(a))) score++;
+      if(score>bestScore){ bestScore=score; best={name,headerRow:r}; }
+    }
+  }
+  return bestScore>=3?best:null;
+}
+function mapStockCols(headers){
+  const hn=headers.map(h=>String(h||'').trim());
+  const map={};
+  for(const k in STOCK_ALIAS){ for(const a of STOCK_ALIAS[k]){ const i=hn.indexOf(a); if(i>=0){ map[k]=i; break; } } }
+  return map;
+}
+function parseStockWorkbook(wb){
+  const pick=pickStockSheet(wb);
+  if(!pick) throw new Error('ไม่พบ sheet สต็อก (ต้องมีอย่างน้อย Stock_Date, Store, GDNO, Stock available Qty)');
+  const ws=wb.Sheets[pick.name];
+  const arr=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+  const headers=arr[pick.headerRow];
+  const map=mapStockCols(headers);
+  for(const k of STOCK_NEED) if(map[k]==null) throw new Error('ไม่พบคอลัมน์สต็อกที่จำเป็น: '+STOCK_ALIAS[k][0]);
+  const get=(row,k)=> map[k]!=null?row[map[k]]:null;
+  const out=[]; let asOf=null;
+  for(let r=pick.headerRow+1;r<arr.length;r++){
+    const row=arr[r]; if(!row) continue;
+    const d=parseDMY(get(row,'date')); if(!d) continue;
+    if(!asOf||d>asOf) asOf=d;
+    out.push({
+      d, st:String(get(row,'store')||'—'), gd:String(get(row,'gdno')||'—'),
+      md:String(get(row,'model')||'—'), br:String(get(row,'brand')||'—'),
+      sc:String(get(row,'subcls')||'—'), qty:Number(get(row,'qty'))||0,
+      costUnit:Number(get(row,'costUnit'))||0, retail:Number(get(row,'retail'))||0,
+      stockAmt:Number(get(row,'stockAmt'))||0, costAmt:Number(get(row,'costAmt'))||0
+    });
+  }
+  if(!out.length) throw new Error('อ่านข้อมูลสต็อกได้ 0 แถว — ตรวจสอบรูปแบบวันที่ในไฟล์ (ต้องเป็น DD/MM/YYYY)');
+  out._asOf=asOf;
+  return out;
+}
+
 /* ---------- persistence (columnar, quota-safe) ---------- */
 const LSKEY='salesdash_v3';
 function save(){
@@ -381,9 +492,11 @@ function save(){
       rows:S.rows.map(r=>[iso(r.d),r.net,r.qty,r.cogs,r.gp,r.src,r.br,r.sc,r.st,r.stn,r.stp,r.md,r.gd,r.rc,r.col,r.pc,r.pn,r.da]),
       ref:iso(S.refDate),
       filters:Object.fromEntries(FILTER_DEFS.map(f=>[f.key,[...S.filters[f.key]]])),
-      netLabel:S.netLabel
+      netLabel:S.netLabel,
+      stockRows:S.stockRows.map(r=>[r.st,r.gd,r.md,r.br,r.sc,r.qty,r.costUnit,r.retail,r.stockAmt,r.costAmt]),
+      stockAsOf:S.stockAsOf?iso(S.stockAsOf):null
     }));
-  }catch(e){ /* quota exceeded -> session only */ }
+  }catch(e){ /* quota exceeded (large stock files can push past the browser limit) -> session only */ }
 }
 function load(){
   try{
@@ -394,6 +507,10 @@ function load(){
     S.refDate=parseDate(o.ref);
     if(o.netLabel) S.netLabel=o.netLabel;
     if(o.filters){ FILTER_DEFS.forEach(f=>{ S.filters[f.key]=new Set(o.filters[f.key]||[]); }); }
+    if(o.stockRows){
+      S.stockRows=o.stockRows.map(a=>({st:a[0],gd:a[1],md:a[2],br:a[3],sc:a[4],qty:a[5],costUnit:a[6],retail:a[7],stockAmt:a[8],costAmt:a[9]}));
+      S.stockAsOf=o.stockAsOf?parseDate(o.stockAsOf):null;
+    }
     return S.rows.length>0;
   }catch(e){ return false; }
 }
@@ -405,6 +522,14 @@ function filtered(){
     (!f.brand.size||f.brand.has(r.br)) &&
     (!f.source.size||f.source.has(r.src)) &&
     (!f.storeType.size||f.storeType.has(r.stp)) &&
+    (!f.subclass.size||f.subclass.has(r.sc)) &&
+    (!f.store.size||f.store.has(r.st))
+  );
+}
+function filteredStock(){
+  const f=S.filters;
+  return S.stockRows.filter(r=>
+    (!f.brand.size||f.brand.has(r.br)) &&
     (!f.subclass.size||f.subclass.has(r.sc)) &&
     (!f.store.size||f.store.has(r.st))
   );
@@ -652,6 +777,103 @@ function renderStoreTable(){
     || '<tr><td colspan="12" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลในเดือนนี้</td></tr>';
 }
 
+function stockRowHTML(m, withAbc){
+  const wocStr = m.woc===Infinity ? '∞' : nf1.format(m.woc);
+  return `<tr><td>${esc(m.md)}</td><td>${esc(m.sc)}</td>${withAbc?`<td>${m.abc}</td>`:''}<td>${m.status}</td>
+    <td>${nf0.format(m.qty)}</td><td>${baht(m.stockAmt)}</td><td>${nf0.format(m.sold90)}</td>
+    <td>${nf1.format(m.sellThrough)}%</td><td>${nf1.format(m.avgWeekly)}</td><td>${wocStr}</td></tr>`;
+}
+
+function renderStock(){
+  const hasStock=S.stockRows.length>0;
+  $('#stockEmpty').classList.toggle('hide', hasStock);
+  $('#stockBody').classList.toggle('hide', !hasStock);
+  if(!hasStock) return;
+
+  const stk=filteredStock();
+  const asOf=S.stockAsOf;
+  const winStart90=new Date(asOf); winStart90.setDate(asOf.getDate()-89);
+  const winStart56=new Date(asOf); winStart56.setDate(asOf.getDate()-55);
+
+  // sales in the trailing windows, respecting the same brand/subclass/store filters as the rest
+  // of the dashboard (filtered() also applies channel/store-type, which is fine — an empty
+  // selection there means "all", so it never narrows the stock analysis unless the user picks one)
+  const salesAll=filtered();
+  const sold90ByModel={}, sold56ByModel={}, saleVal90ByModel={};
+  for(const r of salesAll){
+    if(inRange(r,winStart90,asOf)){ sold90ByModel[r.md]=(sold90ByModel[r.md]||0)+r.qty; saleVal90ByModel[r.md]=(saleVal90ByModel[r.md]||0)+r.net; }
+    if(inRange(r,winStart56,asOf)) sold56ByModel[r.md]=(sold56ByModel[r.md]||0)+r.qty;
+  }
+
+  // aggregate stock by ModelName
+  const byModel={};
+  for(const r of stk){
+    const o=byModel[r.md] || (byModel[r.md]={qty:0,stockAmt:0,costAmt:0,sc:r.sc,gdSet:new Set()});
+    o.qty+=r.qty; o.stockAmt+=r.stockAmt; o.costAmt+=r.costAmt; o.gdSet.add(r.gd);
+  }
+
+  const models=Object.entries(byModel).map(([md,o])=>{
+    const sold90=sold90ByModel[md]||0, sold56=sold56ByModel[md]||0, saleVal90=saleVal90ByModel[md]||0;
+    const sellThrough=(sold90+o.qty)?sold90/(sold90+o.qty)*100:0;
+    const avgWeekly=sold56/8;
+    const woc = avgWeekly>0.0001 ? o.qty/avgWeekly : (o.qty>0?Infinity:0);
+    let status,statusClass;
+    if(o.qty<=0){ status='⚪ หมดสต็อก'; statusClass='oos'; }
+    else if(avgWeekly>0.0001 && woc<2){ status='🔴 ใกล้หมด'; statusClass='low'; }
+    else if(avgWeekly<=0.0001 || woc>12){ status='🟡 ขายช้า/ค้างสต็อก'; statusClass='slow'; }
+    else { status='🟢 ปกติ'; statusClass='ok'; }
+    return {md, sc:o.sc, nGd:o.gdSet.size, qty:o.qty, stockAmt:o.stockAmt, costAmt:o.costAmt,
+      sold90, saleVal90, sellThrough, avgWeekly, woc, status, statusClass};
+  });
+
+  // ABC by sales VALUE in the trailing 90 days (Pareto: A = top 80% cumulative, B = next 15%, C = rest)
+  const totalSaleVal=models.reduce((a,m)=>a+m.saleVal90,0);
+  const sorted=[...models].sort((a,b)=>b.saleVal90-a.saleVal90);
+  let cum=0;
+  for(const m of sorted){
+    if(totalSaleVal<=0){ m.abc='N/A'; continue; }
+    cum+=m.saleVal90;
+    const cumPct=cum/totalSaleVal*100;
+    m.abc = cumPct<=80?'A':cumPct<=95?'B':'C';
+  }
+  const abcSummary={A:{n:0,val:0,stock:0},B:{n:0,val:0,stock:0},C:{n:0,val:0,stock:0}};
+  for(const m of models){ if(!abcSummary[m.abc]) continue; abcSummary[m.abc].n++; abcSummary[m.abc].val+=m.saleVal90; abcSummary[m.abc].stock+=m.stockAmt; }
+
+  const totalQty=stk.reduce((a,r)=>a+r.qty,0);
+  const totalStockAmt=stk.reduce((a,r)=>a+r.stockAmt,0);
+  const totalCostAmt=stk.reduce((a,r)=>a+r.costAmt,0);
+  const skuCount=new Set(stk.map(r=>r.gd)).size;
+  const storeCount=new Set(stk.map(r=>r.st)).size;
+  const totalSold90=models.reduce((a,m)=>a+m.sold90,0);
+  const overallST=(totalSold90+totalQty)?totalSold90/(totalSold90+totalQty)*100:0;
+
+  $('#stockNote').textContent=`ณ วันที่สแนปช็อตสต็อก ${iso(asOf)} • ${skuCount.toLocaleString()} SKU / ${models.length.toLocaleString()} รุ่นสินค้า (หลังกรอง) • Sell-Through/WOC คำนวณจากยอดขาย ${iso(winStart90)} → ${iso(asOf)}`;
+
+  $('#stockKpis').innerHTML=[
+    {k:'สต็อกคงเหลือ', v:nf0.format(totalQty)+' ชิ้น', sub:`${skuCount} SKU • ${storeCount} สาขา/คลัง`},
+    {k:'มูลค่าสต็อก (ราคาขาย)', v:baht(totalStockAmt), sub:'Current Price'},
+    {k:'มูลค่าสต็อก (ต้นทุน)', v:baht(totalCostAmt), sub:'GP ถ้าขายหมด '+nf1.format(totalStockAmt?(totalStockAmt-totalCostAmt)/totalStockAmt*100:0)+'%'},
+    {k:'Sell-Through เฉลี่ย (90 วัน)', v:nf1.format(overallST)+'%', sub:'รวมทุกสินค้าที่มีสต็อก'}
+  ].map(c=>`<div class="kpi"><div class="k">${c.k}</div><div class="v">${c.v}</div><div class="sub">${c.sub}</div></div>`).join('');
+
+  $('#abcKpis').innerHTML=['A','B','C'].map(cls=>{
+    const s=abcSummary[cls];
+    const valPct=totalSaleVal>0?s.val/totalSaleVal*100:0;
+    return `<div class="kpi"><div class="k">Class ${cls}</div><div class="v">${s.n} รุ่น</div>
+      <div class="sub">${nf1.format(valPct)}% ของยอดขาย • สต็อกผูก ${compact(s.stock)}</div></div>`;
+  }).join('');
+
+  const lowStock=models.filter(m=>m.statusClass==='low').sort((a,b)=>a.woc-b.woc).slice(0,10);
+  const slowStock=models.filter(m=>m.statusClass==='slow').sort((a,b)=>b.stockAmt-a.stockAmt).slice(0,10);
+  const alertList=[...lowStock,...slowStock];
+  $('#alertTbl tbody').innerHTML = alertList.length ? alertList.map(m=>stockRowHTML(m,false)).join('')
+    : '<tr><td colspan="9" style="text-align:center;color:var(--muted)">ไม่มีสินค้าที่ต้องจับตาในตอนนี้ 🎉</td></tr>';
+
+  const stockSorted=[...models].sort((a,b)=>b.stockAmt-a.stockAmt);
+  $('#stockTbl tbody').innerHTML = stockSorted.map(m=>stockRowHTML(m,true)).join('')
+    || '<tr><td colspan="10" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลสต็อกในตัวกรองที่เลือก</td></tr>';
+}
+
 function renderAll(){
   const f=filtered(); const R=ranges();
   const rc=f.filter(r=>inRange(r,R.cur[0],R.cur[1]));
@@ -662,6 +884,7 @@ function renderAll(){
   renderKPIs(cur,ly,lm);
   renderTrend(rc); renderChannel(rc); renderCat(rc); renderTable(rc,rl); renderPromo(rc,rl);
   renderStoreTable();
+  renderStock();
   $('#foot').textContent=`ช่วงข้อมูลที่แสดง: ${iso(R.cur[0])} → ${iso(R.cur[1])} • เทียบปีก่อน ${iso(R.ly[0])} → ${iso(R.ly[1])}`
     + (R.lm?` • เทียบเดือนก่อน ${iso(R.lm[0])} → ${iso(R.lm[1])}`:'')
     + ` • ${S.rows.length.toLocaleString()} แถว`;
@@ -744,6 +967,7 @@ function showDash(){
   $('#dash').classList.remove('hide');
   $('#exportBtn').classList.remove('hide');
   $('#clearBtn').classList.remove('hide');
+  $('#uploadStockBtn').classList.remove('hide');
   const min=S.rows.reduce((a,r)=>r.k<a.k?r:a), max=S.rows.reduce((a,r)=>r.k>a.k?r:a);
   if(!S.refDate) S.refDate=max.d;
   $('#refDate').min=iso(min.d); $('#refDate').max=iso(max.d); $('#refDate').value=iso(S.refDate);
@@ -768,9 +992,27 @@ function handleFile(file){
   };
   rd.readAsArrayBuffer(file);
 }
+function handleStockFile(file){
+  if(!S.rows.length){ alert('กรุณาอัปโหลดไฟล์ยอดขายก่อน แล้วค่อยอัปโหลดไฟล์สต็อก'); return; }
+  const rd=new FileReader();
+  rd.onload=e=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      const rows=parseStockWorkbook(wb);
+      S.stockRows=rows; S.stockAsOf=rows._asOf;
+      // scope to NATGEO as requested — easily changed anytime via the แบรนด์ filter above
+      const brands=new Set(rows.map(r=>r.br));
+      if(brands.has('NATGEO')) S.filters.brand=new Set(['NATGEO']);
+      buildFilters(); renderAll(); save();
+    }catch(err){ alert('เปิดไฟล์สต็อกไม่สำเร็จ: '+err.message); }
+  };
+  rd.readAsArrayBuffer(file);
+}
 
 $('#uploadBtn').onclick=()=>$('#file').click();
 $('#file').onchange=e=>{ if(e.target.files[0]) handleFile(e.target.files[0]); };
+$('#uploadStockBtn').onclick=()=>$('#stockFile').click();
+$('#stockFile').onchange=e=>{ if(e.target.files[0]) handleStockFile(e.target.files[0]); };
 const drop=$('#drop');
 drop.onclick=()=>$('#file').click();
 ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
