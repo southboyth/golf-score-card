@@ -94,6 +94,9 @@ th{position:sticky;top:0;background:var(--card);font-size:11px;color:var(--muted
 .msel-item input{width:auto;height:auto;flex:0 0 auto}
 .msel-empty{padding:10px;color:var(--muted);font-size:12px;text-align:center}
 .sale-day-note{font-size:11px;color:var(--muted);margin-top:8px}
+.subhead{font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin:0 0 8px}
+tr.total-row td{font-weight:800;background:var(--chip);border-bottom:2px solid var(--brand)}
+tr.total-row td:first-child{color:var(--brand)}
 </style>
 </head>
 <body>
@@ -176,6 +179,19 @@ th{position:sticky;top:0;background:var(--card);font-size:11px;color:var(--muted
     <div class="panel">
       <div class="chart-title" style="margin-bottom:2px">🏪 ยอดขายและ Retail KPI รายสาขา</div>
       <div class="chart-note" id="storeNote" style="margin-bottom:10px"></div>
+
+      <div class="subhead">สรุปโดยรวม และตามประเภทร้าน (Store Type)</div>
+      <div class="tbl-scroll" style="margin-bottom:16px">
+        <table id="storeTypeTbl">
+          <thead><tr>
+            <th>ประเภทร้าน</th><th>จำนวนสาขา</th><th>ยอดขาย ฿</th><th>ชิ้น</th><th>บิล</th>
+            <th>ATV</th><th>UPT</th><th>ASP</th><th>ยอด/วัน</th><th>พยากรณ์สิ้นเดือน</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="subhead">รายละเอียดตามสาขา</div>
       <div class="tbl-scroll">
         <table id="storeTbl">
           <thead><tr>
@@ -479,6 +495,20 @@ function renderTable(rowsCur,rowsLy){
   }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลในช่วงที่เลือก</td></tr>';
 }
 
+function kpiRow(o, daysElapsed, daysInMonth){
+  const bills=o.bills.size;
+  const atv=bills?o.net/bills:0, upt=bills?o.qty/bills:0, asp=o.qty?o.net/o.qty:0;
+  const perDay=daysElapsed?o.net/daysElapsed:0, forecast=perDay*daysInMonth;
+  return {...o, bills, atv, upt, asp, perDay, forecast};
+}
+function kpiRowHTML(labelHTML, extraTd, r, rowClass){
+  return `<tr${rowClass?` class="${rowClass}"`:''}><td>${labelHTML}</td>${extraTd}
+      <td>${baht(r.net)}</td><td>${nf0.format(r.qty)}</td><td>${nf0.format(r.bills)}</td>
+      <td>${baht(r.atv)}</td><td>${nf1.format(r.upt)}</td><td>${baht(r.asp)}</td>
+      <td>${baht(r.perDay)}</td><td>${baht(r.forecast)}</td>
+    </tr>`;
+}
+
 function renderStoreTable(){
   // Store-level Retail KPI: always scoped to MTD-of-refDate, independent of the Daily/MTD/YTD toggle,
   // because Sale/Day and Forecast-EOM are inherently monthly run-rate metrics.
@@ -488,24 +518,37 @@ function renderStoreTable(){
   const daysInMonth=new Date(y,mo+1,0).getDate();
   const daysElapsed=ref.getDate();
   const rows=filtered().filter(r=>inRange(r,monthStart,ref));
-  const m={};
+
+  // per-store
+  const byStore={};
   for(const r of rows){
-    const o=m[r.st] || (m[r.st]={net:0,qty:0,bills:new Set(),stn:r.stn,stp:r.stp});
+    const o=byStore[r.st] || (byStore[r.st]={net:0,qty:0,bills:new Set(),stn:r.stn,stp:r.stp});
     o.net+=r.net; o.qty+=r.qty; if(r.rc) o.bills.add(r.rc);
   }
-  const list=Object.entries(m).map(([code,o])=>{
-    const bills=o.bills.size;
-    const atv=bills?o.net/bills:0, upt=bills?o.qty/bills:0, asp=o.qty?o.net/o.qty:0;
-    const perDay=daysElapsed?o.net/daysElapsed:0, forecast=perDay*daysInMonth;
-    return {code,stn:o.stn,stp:o.stp,net:o.net,qty:o.qty,bills,atv,upt,asp,perDay,forecast};
-  }).sort((a,b)=>b.net-a.net);
-  $('#storeNote').textContent=`เดือน ${mo+1}/${y} • สะสมถึงวันที่ ${daysElapsed} จาก ${daysInMonth} วัน • ${list.length} สาขาที่มียอดขาย`;
-  $('#storeTbl tbody').innerHTML = list.map(s=>`<tr>
-      <td>${esc(s.code)} — ${esc(s.stn)}</td><td>${esc(s.stp)}</td>
-      <td>${baht(s.net)}</td><td>${nf0.format(s.qty)}</td><td>${nf0.format(s.bills)}</td>
-      <td>${baht(s.atv)}</td><td>${nf1.format(s.upt)}</td><td>${baht(s.asp)}</td>
-      <td>${baht(s.perDay)}</td><td>${baht(s.forecast)}</td>
-    </tr>`).join('') || '<tr><td colspan="10" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลในเดือนนี้</td></tr>';
+  const storeList=Object.entries(byStore).map(([code,o])=>({code, ...kpiRow(o,daysElapsed,daysInMonth)}))
+    .sort((a,b)=>b.net-a.net);
+
+  // per-store-type + overall total
+  const byType={};
+  const total={net:0,qty:0,bills:new Set(),storeSet:new Set()};
+  for(const r of rows){
+    const o=byType[r.stp] || (byType[r.stp]={net:0,qty:0,bills:new Set(),storeSet:new Set()});
+    o.net+=r.net; o.qty+=r.qty; if(r.rc) o.bills.add(r.rc); o.storeSet.add(r.st);
+    total.net+=r.net; total.qty+=r.qty; if(r.rc) total.bills.add(r.rc); total.storeSet.add(r.st);
+  }
+  const typeList=Object.entries(byType).map(([tp,o])=>({tp, nstores:o.storeSet.size, ...kpiRow(o,daysElapsed,daysInMonth)}))
+    .sort((a,b)=>b.net-a.net);
+  const totalRow=kpiRow(total,daysElapsed,daysInMonth);
+
+  $('#storeNote').textContent=`เดือน ${mo+1}/${y} • สะสมถึงวันที่ ${daysElapsed} จาก ${daysInMonth} วัน • ${storeList.length} สาขาที่มียอดขาย`;
+
+  $('#storeTypeTbl tbody').innerHTML = rows.length ?
+    kpiRowHTML('รวมทั้งหมด (Total)', `<td>${nf0.format(total.storeSet.size)}</td>`, totalRow, 'total-row')
+    + typeList.map(t=>kpiRowHTML(esc(t.tp), `<td>${nf0.format(t.nstores)}</td>`, t)).join('')
+    : '<tr><td colspan="10" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลในเดือนนี้</td></tr>';
+
+  $('#storeTbl tbody').innerHTML = storeList.map(s=>kpiRowHTML(`${esc(s.code)} — ${esc(s.stn)}`, `<td>${esc(s.stp)}</td>`, s)).join('')
+    || '<tr><td colspan="10" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลในเดือนนี้</td></tr>';
 }
 
 function renderAll(){
