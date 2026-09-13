@@ -715,10 +715,15 @@ window.onFirebaseAuthChange=function(user){
     $('#signInBtn').classList.add('hide');
     $('#userBox').classList.remove('hide');
     $('#userEmail').textContent=user.email;
-    // only auto-pull when this device has nothing loaded yet, so signing in never silently
-    // clobbers a fresh local upload that hasn't been pushed up yet
-    if(!S.rows.length) pullAllFromCloud();
-    else setSyncStatus('☁️ เข้าสู่ระบบแล้ว — การอัปโหลดไฟล์ใหม่จะซิงค์ขึ้นคลาวด์อัตโนมัติ');
+    // if this device has nothing loaded yet, pull from cloud (the iPad/new-device case).
+    // if it already has local data — e.g. someone uploaded before signing in — ask before
+    // pushing, since that could overwrite data another signed-in device already put up
+    if(!S.rows.length){ pullAllFromCloud(); }
+    else if(confirm('พบข้อมูลในเครื่องนี้อยู่แล้ว ต้องการซิงค์ขึ้นคลาวด์ตอนนี้เลยไหม?\n(ถ้ามีข้อมูลอื่นอยู่บนคลาวด์แล้ว จะถูกเขียนทับด้วยข้อมูลจากเครื่องนี้)')){
+      syncSalesUp(); syncStockUp(); syncTargetsUp();
+    } else {
+      setSyncStatus('☁️ เข้าสู่ระบบแล้ว — การอัปโหลดไฟล์ใหม่จะซิงค์ขึ้นคลาวด์อัตโนมัติ');
+    }
   } else {
     $('#signInBtn').classList.remove('hide');
     $('#userBox').classList.add('hide');
