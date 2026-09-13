@@ -32,6 +32,9 @@ body{padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom);min-heigh
 .top h1{font-size:22px;margin:0;font-weight:800;letter-spacing:-.3px}
 .top .sub{font-size:12px;color:var(--muted)}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.authbar{display:flex;justify-content:flex-end;align-items:center;gap:10px;padding:4px 2px 10px;flex-wrap:wrap}
+.authbar .email{font-size:12px;color:var(--muted)}
+#syncStatus{font-size:11px;color:var(--muted);text-align:right}
 .btn{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:10px;
   padding:9px 13px;font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;gap:6px;align-items:center}
 .btn.primary{background:var(--brand);color:#fff;border-color:transparent}
@@ -102,6 +105,15 @@ tr.total-row td:first-child{color:var(--brand)}
 </head>
 <body>
 <div class="wrap" id="app">
+
+  <div class="authbar">
+    <span id="syncStatus"></span>
+    <button class="btn primary" id="signInBtn">🔑 เข้าสู่ระบบด้วย Google</button>
+    <div class="hide" id="userBox" style="display:flex;align-items:center;gap:8px">
+      <span class="email" id="userEmail"></span>
+      <button class="btn" id="signOutBtn">ออกจากระบบ</button>
+    </div>
+  </div>
 
   <div class="top">
     <div>
@@ -282,6 +294,39 @@ tr.total-row td:first-child{color:var(--brand)}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script type="module">
+  // Firebase sync — lets the same uploaded data show up on any signed-in device (e.g. iPad),
+  // not just the browser it was uploaded from. Module scripts always run after the document has
+  // parsed (deferred by spec, regardless of position), so by the time this runs the classic
+  // <script> below has already defined window.onFirebaseAuthChange for it to call into.
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+    from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+  import { getFirestore, doc, getDoc, setDoc, deleteDoc, writeBatch }
+    from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBzxPV5WOLcE-IjB3iG9lULmeefV1N8Cd4",
+    authDomain: "sale-dashboard-fb098.firebaseapp.com",
+    projectId: "sale-dashboard-fb098",
+    storageBucket: "sale-dashboard-fb098.firebasestorage.app",
+    messagingSenderId: "45415828920",
+    appId: "1:45415828920:web:e27ff0e6414885aa8f534d"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const provider = new GoogleAuthProvider();
+
+  window.fb = {
+    signIn: () => signInWithPopup(auth, provider).catch(err => alert('เข้าสู่ระบบไม่สำเร็จ: ' + err.message)),
+    signOutUser: () => signOut(auth),
+    db, doc, getDoc, setDoc, deleteDoc, writeBatch
+  };
+
+  onAuthStateChanged(auth, user => { if (window.onFirebaseAuthChange) window.onFirebaseAuthChange(user); });
+</script>
 <script>
 "use strict";
 
@@ -319,6 +364,7 @@ const FILTER_DEFS = [
 ];
 
 const S = { rows:[], refDate:null, view:'ytd', filters:{}, charts:{}, netLabel:'Netsale (Excl VAT)', stockRows:[], stockAsOf:null, targets:{} };
+let cloudUser=null;
 FILTER_DEFS.forEach(f=>S.filters[f.key]=new Set());
 const $ = s => document.querySelector(s);
 const CATCOLORS = ['#2563eb','#16a34a','#f59e0b','#db2777','#7c3aed','#0891b2','#dc2626','#65a30d','#9ca3af'];
@@ -548,14 +594,21 @@ function parseTargetWorkbook(wb){
 
 /* ---------- persistence (columnar, quota-safe) ---------- */
 const LSKEY='salesdash_v3';
+// shared row <-> compact-array codecs, used by both localStorage and Firestore sync so the two
+// storage layers can never silently drift apart in field order
+const encodeSalesRow = r=>[iso(r.d),r.net,r.qty,r.cogs,r.gp,r.src,r.br,r.sc,r.st,r.stn,r.stp,r.md,r.gd,r.rc,r.col,r.pc,r.pn,r.da];
+const decodeSalesRow = a=>{ const d=parseDate(a[0]); return {d,k:dayKey(d),y:d.getFullYear(),m:d.getMonth()+1,
+  net:a[1],qty:a[2],cogs:a[3],gp:a[4],src:a[5],br:a[6],sc:a[7],st:a[8],stn:a[9],stp:a[10],md:a[11],gd:a[12],rc:a[13],col:a[14],pc:a[15]||'',pn:a[16]||'',da:a[17]||0}; };
+const encodeStockRow = r=>[r.st,r.gd,r.md,r.br,r.sc,r.qty,r.costUnit,r.retail,r.stockAmt,r.costAmt];
+const decodeStockRow = a=>({st:a[0],gd:a[1],md:a[2],br:a[3],sc:a[4],qty:a[5],costUnit:a[6],retail:a[7],stockAmt:a[8],costAmt:a[9]});
 function save(){
   try{
     localStorage.setItem(LSKEY, JSON.stringify({
-      rows:S.rows.map(r=>[iso(r.d),r.net,r.qty,r.cogs,r.gp,r.src,r.br,r.sc,r.st,r.stn,r.stp,r.md,r.gd,r.rc,r.col,r.pc,r.pn,r.da]),
+      rows:S.rows.map(encodeSalesRow),
       ref:iso(S.refDate),
       filters:Object.fromEntries(FILTER_DEFS.map(f=>[f.key,[...S.filters[f.key]]])),
       netLabel:S.netLabel,
-      stockRows:S.stockRows.map(r=>[r.st,r.gd,r.md,r.br,r.sc,r.qty,r.costUnit,r.retail,r.stockAmt,r.costAmt]),
+      stockRows:S.stockRows.map(encodeStockRow),
       stockAsOf:S.stockAsOf?iso(S.stockAsOf):null,
       targets:S.targets
     }));
@@ -565,19 +618,113 @@ function load(){
   try{
     const raw=localStorage.getItem(LSKEY); if(!raw) return false;
     const o=JSON.parse(raw);
-    S.rows=o.rows.map(a=>{ const d=parseDate(a[0]); return {d,k:dayKey(d),y:d.getFullYear(),m:d.getMonth()+1,
-      net:a[1],qty:a[2],cogs:a[3],gp:a[4],src:a[5],br:a[6],sc:a[7],st:a[8],stn:a[9],stp:a[10],md:a[11],gd:a[12],rc:a[13],col:a[14],pc:a[15]||'',pn:a[16]||'',da:a[17]||0};});
+    S.rows=o.rows.map(decodeSalesRow);
     S.refDate=parseDate(o.ref);
     if(o.netLabel) S.netLabel=o.netLabel;
     if(o.filters){ FILTER_DEFS.forEach(f=>{ S.filters[f.key]=new Set(o.filters[f.key]||[]); }); }
     if(o.stockRows){
-      S.stockRows=o.stockRows.map(a=>({st:a[0],gd:a[1],md:a[2],br:a[3],sc:a[4],qty:a[5],costUnit:a[6],retail:a[7],stockAmt:a[8],costAmt:a[9]}));
+      S.stockRows=o.stockRows.map(decodeStockRow);
       S.stockAsOf=o.stockAsOf?parseDate(o.stockAsOf):null;
     }
     if(o.targets) S.targets=o.targets;
     return S.rows.length>0;
   }catch(e){ return false; }
 }
+
+/* ---------- Firebase cloud sync (optional — only active once signed in) ---------- */
+// Firestore forbids an array directly containing another array, so each chunk is stored as one
+// JSON string rather than an array of row-arrays; CLOUD_CHUNK is sized to stay well under the
+// 1MiB per-document limit even for rows with long promotion-name text.
+const CLOUD_CHUNK=1500;
+function setSyncStatus(msg){ const el=$('#syncStatus'); if(el) el.textContent=msg; }
+async function pushCollectionToCloud(rows, colName, encodeRow, extraMeta){
+  const {db,doc,getDoc,writeBatch}=window.fb;
+  const metaRef=doc(db,'company/main/meta',colName);
+  const oldMetaSnap=await getDoc(metaRef);
+  const oldCount=oldMetaSnap.exists()?(oldMetaSnap.data().chunkCount||0):0;
+  const chunks=[]; for(let i=0;i<rows.length;i+=CLOUD_CHUNK) chunks.push(JSON.stringify(rows.slice(i,i+CLOUD_CHUNK).map(encodeRow)));
+  let batch=writeBatch(db), ops=0;
+  const flush=async()=>{ if(ops>0){ await batch.commit(); batch=writeBatch(db); ops=0; } };
+  for(let i=0;i<chunks.length;i++){
+    batch.set(doc(db,'company/main/'+colName,String(i)),{data:chunks[i]}); ops++;
+    if(ops>=400) await flush();
+  }
+  for(let i=chunks.length;i<oldCount;i++){ batch.delete(doc(db,'company/main/'+colName,String(i))); ops++; if(ops>=400) await flush(); }
+  batch.set(metaRef, Object.assign({chunkCount:chunks.length,updatedAt:Date.now(),updatedBy:cloudUser?cloudUser.email:''}, extraMeta||{}));
+  ops++;
+  await flush();
+}
+async function pullCollectionFromCloud(colName){
+  const {db,doc,getDoc}=window.fb;
+  const metaSnap=await getDoc(doc(db,'company/main/meta',colName));
+  if(!metaSnap.exists()) return null;
+  const meta=metaSnap.data();
+  const snaps=await Promise.all(Array.from({length:meta.chunkCount},(_,i)=>getDoc(doc(db,'company/main/'+colName,String(i)))));
+  const rows=[]; snaps.forEach(s=>{ if(s.exists()) rows.push(...JSON.parse(s.data().data)); });
+  return {rows, meta};
+}
+async function syncSalesUp(){
+  if(!cloudUser) return;
+  setSyncStatus('🔄 กำลังซิงค์ยอดขายขึ้นคลาวด์...');
+  try{ await pushCollectionToCloud(S.rows,'sales',encodeSalesRow,{netLabel:S.netLabel});
+    setSyncStatus('☁️ ซิงค์ยอดขายแล้ว '+new Date().toLocaleTimeString('th-TH'));
+  }catch(err){ setSyncStatus('⚠️ ซิงค์ยอดขายไม่สำเร็จ: '+err.message); }
+}
+async function syncStockUp(){
+  if(!cloudUser) return;
+  setSyncStatus('🔄 กำลังซิงค์สต็อกขึ้นคลาวด์...');
+  try{ await pushCollectionToCloud(S.stockRows,'stock',encodeStockRow,{stockAsOf:S.stockAsOf?iso(S.stockAsOf):null});
+    setSyncStatus('☁️ ซิงค์สต็อกแล้ว '+new Date().toLocaleTimeString('th-TH'));
+  }catch(err){ setSyncStatus('⚠️ ซิงค์สต็อกไม่สำเร็จ: '+err.message); }
+}
+async function syncTargetsUp(){
+  if(!cloudUser) return;
+  setSyncStatus('🔄 กำลังซิงค์เป้าหมายขึ้นคลาวด์...');
+  try{
+    const {db,doc,setDoc}=window.fb;
+    await setDoc(doc(db,'company/main/meta','targets'),{data:S.targets,updatedAt:Date.now(),updatedBy:cloudUser.email});
+    setSyncStatus('☁️ ซิงค์เป้าหมายแล้ว '+new Date().toLocaleTimeString('th-TH'));
+  }catch(err){ setSyncStatus('⚠️ ซิงค์เป้าหมายไม่สำเร็จ: '+err.message); }
+}
+async function pullAllFromCloud(){
+  setSyncStatus('🔄 กำลังโหลดข้อมูลจากคลาวด์...');
+  try{
+    const {db,doc,getDoc}=window.fb;
+    const salesRes=await pullCollectionFromCloud('sales');
+    if(salesRes && salesRes.rows.length){
+      S.rows=salesRes.rows.map(decodeSalesRow);
+      if(salesRes.meta.netLabel) S.netLabel=salesRes.meta.netLabel;
+      S.refDate=null;
+      FILTER_DEFS.forEach(f=>S.filters[f.key]=new Set());
+    }
+    const stockRes=await pullCollectionFromCloud('stock');
+    if(stockRes && stockRes.rows.length){
+      S.stockRows=stockRes.rows.map(decodeStockRow);
+      S.stockAsOf=stockRes.meta.stockAsOf?parseDate(stockRes.meta.stockAsOf):null;
+    }
+    const targetSnap=await getDoc(doc(db,'company/main/meta','targets'));
+    if(targetSnap.exists() && targetSnap.data().data) S.targets=targetSnap.data().data;
+    if(S.rows.length){ showDash(); }
+    save();
+    setSyncStatus(S.rows.length?'☁️ ซิงค์จากคลาวด์แล้ว '+new Date().toLocaleTimeString('th-TH'):'☁️ เข้าสู่ระบบแล้ว — ยังไม่มีข้อมูลในคลาวด์ ลองอัปโหลดไฟล์ได้เลย');
+  }catch(err){ setSyncStatus('⚠️ โหลดจากคลาวด์ไม่สำเร็จ: '+err.message); }
+}
+window.onFirebaseAuthChange=function(user){
+  cloudUser=user;
+  if(user){
+    $('#signInBtn').classList.add('hide');
+    $('#userBox').classList.remove('hide');
+    $('#userEmail').textContent=user.email;
+    // only auto-pull when this device has nothing loaded yet, so signing in never silently
+    // clobbers a fresh local upload that hasn't been pushed up yet
+    if(!S.rows.length) pullAllFromCloud();
+    else setSyncStatus('☁️ เข้าสู่ระบบแล้ว — การอัปโหลดไฟล์ใหม่จะซิงค์ขึ้นคลาวด์อัตโนมัติ');
+  } else {
+    $('#signInBtn').classList.remove('hide');
+    $('#userBox').classList.add('hide');
+    setSyncStatus('');
+  }
+};
 
 /* ---------- aggregation ---------- */
 function filtered(){
@@ -1098,7 +1245,7 @@ function handleFile(file){
       if(rows._skippedStock) notes.push(`ข้ามข้อมูลสต็อก ${rows._skippedStock.toLocaleString()} แถว (Source = STOCK) — จะใช้ในโมดูลสต็อกเฟสถัดไป`);
       if(notes.length){ $('#warnbar').textContent='หมายเหตุ: '+notes.join(' • '); $('#warnbar').classList.remove('hide'); }
       else $('#warnbar').classList.add('hide');
-      showDash(); save();
+      showDash(); save(); syncSalesUp();
     }catch(err){ alert('เปิดไฟล์ไม่สำเร็จ: '+err.message); }
   };
   rd.readAsArrayBuffer(file);
@@ -1115,7 +1262,7 @@ function handleStockFile(file){
       const brands=new Set(rows.map(r=>r.br));
       const targetBrands=['NATGEO','GOODR'].filter(b=>brands.has(b));
       if(targetBrands.length) S.filters.brand=new Set(targetBrands);
-      buildFilters(); renderAll(); save();
+      buildFilters(); renderAll(); save(); syncStockUp();
     }catch(err){ alert('เปิดไฟล์สต็อกไม่สำเร็จ: '+err.message); }
   };
   rd.readAsArrayBuffer(file);
@@ -1127,7 +1274,7 @@ function handleTargetFile(file){
     try{
       const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
       S.targets=parseTargetWorkbook(wb);
-      renderAll(); save();
+      renderAll(); save(); syncTargetsUp();
     }catch(err){ alert('เปิดไฟล์เป้าหมายไม่สำเร็จ: '+err.message); }
   };
   rd.readAsArrayBuffer(file);
@@ -1140,6 +1287,8 @@ $('#stockFile').onchange=e=>{ if(e.target.files[0]) handleStockFile(e.target.fil
 $('#downloadTargetBtn').onclick=()=>downloadTargetTemplate();
 $('#uploadTargetBtn').onclick=()=>$('#targetFile').click();
 $('#targetFile').onchange=e=>{ if(e.target.files[0]) handleTargetFile(e.target.files[0]); };
+$('#signInBtn').onclick=()=>window.fb.signIn();
+$('#signOutBtn').onclick=()=>window.fb.signOutUser();
 const drop=$('#drop');
 drop.onclick=()=>$('#file').click();
 ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
