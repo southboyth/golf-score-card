@@ -111,6 +111,7 @@ tr.total-row td:first-child{color:var(--brand)}
     <button class="btn primary" id="signInBtn">🔑 เข้าสู่ระบบด้วย Google</button>
     <div class="hide" id="userBox" style="display:flex;align-items:center;gap:8px">
       <span class="email" id="userEmail"></span>
+      <button class="btn" id="refreshBtn">🔄 รีเฟรชจากคลาวด์</button>
       <button class="btn" id="signOutBtn">ออกจากระบบ</button>
     </div>
   </div>
@@ -1301,6 +1302,13 @@ $('#uploadTargetBtn').onclick=()=>$('#targetFile').click();
 $('#targetFile').onchange=e=>{ if(e.target.files[0]) handleTargetFile(e.target.files[0]); };
 $('#signInBtn').onclick=()=>window.fb.signIn();
 $('#signOutBtn').onclick=()=>window.fb.signOutUser();
+$('#refreshBtn').onclick=async()=>{
+  // explicit user action, so unlike sign-in this always pulls and overwrites the local view —
+  // that's the whole point of the button (pull whatever was just uploaded from another device)
+  const btn=$('#refreshBtn'); btn.disabled=true;
+  await pullAllFromCloud();
+  btn.disabled=false;
+};
 const drop=$('#drop');
 drop.onclick=()=>$('#file').click();
 ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
