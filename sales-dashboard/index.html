@@ -76,6 +76,10 @@ table{width:100%;border-collapse:collapse;font-size:13px}
 th,td{padding:9px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
 th:first-child,td:first-child{text-align:left;white-space:normal}
 th{position:sticky;top:0;background:var(--card);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;z-index:1}
+#dash thead th{cursor:pointer;user-select:none;-webkit-user-select:none}
+#dash thead th:hover{color:var(--brand)}
+#dash thead th[data-dir=asc]::after{content:" ▲";font-size:9px;color:var(--brand)}
+#dash thead th[data-dir=desc]::after{content:" ▼";font-size:9px;color:var(--brand)}
 .tbl-scroll{max-height:460px;overflow:auto;border:1px solid var(--line);border-radius:12px}
 .empty{text-align:center;padding:48px 16px;color:var(--muted)}
 .empty .big{font-size:44px;margin-bottom:8px}
@@ -425,7 +429,7 @@ const FILTER_DEFS = [
   {key:'store',     field:'st',  label:'สาขา'}
 ];
 
-const S = { rows:[], refDate:null, view:'ytd', page:'sales', filters:{}, charts:{}, netLabel:'Netsale (Excl VAT)', stockRows:[], stockAsOf:null, targets:{}, agingRows:[] };
+const S = { rows:[], refDate:null, view:'ytd', page:'sales', filters:{}, charts:{}, netLabel:'Netsale (Excl VAT)', stockRows:[], stockAsOf:null, targets:{}, agingRows:[], sort:{} };
 let cloudUser=null;
 FILTER_DEFS.forEach(f=>S.filters[f.key]=new Set());
 const $ = s => document.querySelector(s);
@@ -689,6 +693,7 @@ function save(){
       rows:S.rows.map(encodeSalesRow),
       ref:iso(S.refDate),
       page:S.page,
+      sort:S.sort,
       filters:Object.fromEntries(FILTER_DEFS.map(f=>[f.key,[...S.filters[f.key]]])),
       netLabel:S.netLabel,
       stockRows:S.stockRows.map(encodeStockRow),
@@ -705,6 +710,7 @@ function load(){
     S.rows=o.rows.map(decodeSalesRow);
     S.refDate=parseDate(o.ref);
     if(o.page) S.page=o.page;
+    if(o.sort) S.sort=o.sort;
     if(o.netLabel) S.netLabel=o.netLabel;
     if(o.filters){ FILTER_DEFS.forEach(f=>{ S.filters[f.key]=new Set(o.filters[f.key]||[]); }); }
     if(o.stockRows){
@@ -1308,10 +1314,65 @@ function renderAll(){
   renderStoreTable();
   renderStock();
   renderAging();
+  reapplySorts();
   $('#foot').textContent=`ช่วงข้อมูลที่แสดง: ${iso(R.cur[0])} → ${iso(R.cur[1])} • เทียบปีก่อน ${iso(R.ly[0])} → ${iso(R.ly[1])}`
     + (R.lm?` • เทียบเดือนก่อน ${iso(R.lm[0])} → ${iso(R.lm[1])}`:'')
     + ` • ${S.rows.length.toLocaleString()} แถว`;
 }
+
+/* ---------- sortable tables (click any header, any dimension) ---------- */
+// A generic DOM sorter: works on whatever a render function already put in the tbody, so every
+// table becomes sortable without each one carrying its own sort logic. Rows flagged .total-row
+// (roll-up totals) stay pinned at the top regardless of sort.
+function cellSortVal(td){
+  const raw=(td.getAttribute('data-sort') ?? td.textContent).trim();
+  if(raw===''||raw==='—'||raw==='-') return {n:null,s:''};
+  if(raw==='∞') return {n:Infinity,s:raw};
+  const hasDigit=/[0-9]/.test(raw);
+  const num=parseFloat(raw.replace(/[^0-9.\-]/g,''));
+  if(hasDigit && !isNaN(num)) return {n:num,s:raw};
+  return {n:null,s:raw.toLowerCase()};
+}
+function sortTableById(id){
+  const st=S.sort[id]; const table=$('#'+id); if(!table||!st) return;
+  const tbody=table.tBodies[0]; if(!tbody) return;
+  const all=[...tbody.rows];
+  // don't sort an empty-state placeholder (single row with a colspan message)
+  if(all.length<=1 || (all.length===1 && all[0].cells.length===1)) { markSortHeader(table,st); return; }
+  if(all.length && all[0].cells.length===1 && all[0].cells[0].hasAttribute('colspan')) return;
+  const pinned=all.filter(r=>r.classList.contains('total-row'));
+  const body=all.filter(r=>!r.classList.contains('total-row'));
+  const i=st.idx, dir=st.dir;
+  body.sort((ra,rb)=>{
+    const a=cellSortVal(ra.cells[i]||{textContent:''}), b=cellSortVal(rb.cells[i]||{textContent:''});
+    let r;
+    if(a.n!==null && b.n!==null) r=a.n-b.n;
+    else if(a.n!==null) r=1; else if(b.n!==null) r=-1;
+    else r=a.s<b.s?-1:a.s>b.s?1:0;
+    return dir==='asc'?r:-r;
+  });
+  const frag=document.createDocumentFragment();
+  pinned.forEach(r=>frag.appendChild(r));
+  body.forEach(r=>frag.appendChild(r));
+  tbody.appendChild(frag);
+  markSortHeader(table,st);
+}
+function markSortHeader(table,st){
+  table.querySelectorAll('thead th').forEach((th,idx)=>{
+    if(idx===st.idx) th.setAttribute('data-dir',st.dir); else th.removeAttribute('data-dir');
+  });
+}
+function reapplySorts(){ for(const id in S.sort) sortTableById(id); }
+document.addEventListener('click', e=>{
+  const th=e.target.closest('#dash thead th'); if(!th) return;
+  const table=th.closest('table'); if(!table||!table.id) return;
+  const idx=[...th.parentElement.children].indexOf(th);
+  const prev=S.sort[table.id];
+  // first click on a column -> descending (largest first, most useful for ฿/qty); re-click flips
+  const dir=(prev && prev.idx===idx && prev.dir==='desc') ? 'asc' : 'desc';
+  S.sort[table.id]={idx,dir};
+  sortTableById(table.id); save();
+});
 
 /* ---------- multi-select filters UI ---------- */
 function initFilterUI(){
