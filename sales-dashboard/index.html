@@ -265,18 +265,18 @@ tr.total-row td:first-child{color:var(--brand)}
       <div id="agingBody" class="hide">
         <div class="kpis" id="agingKpis" style="margin-bottom:16px"></div>
 
-        <div class="subhead">มูลค่าสต็อกค้างขายรายสาขา (ต้นทุน)</div>
+        <div class="subhead">รายสาขา — จำนวนชิ้นค้างนาน และมูลค่าต้นทุนแยกตามระดับ</div>
         <div class="tbl-scroll" style="margin-bottom:12px">
           <table id="agingTbl">
             <thead><tr>
               <th>สาขา</th>
-              <th>W · 120 วัน</th><th>N · 150 วัน</th><th>O · 180 วัน</th><th>&lt;O&gt; · 360 วัน</th>
-              <th>รวมค้างนาน (N+O+&lt;O&gt;)</th><th>SKU ค้างนาน</th>
+              <th>W · 120 วัน (฿)</th><th>N · 150 วัน (฿)</th><th>O · 180 วัน (฿)</th><th>&lt;O&gt; · 360 วัน (฿)</th>
+              <th>รวมค้างนาน N+O+&lt;O&gt; (฿)</th><th>ชิ้นค้างนาน</th>
             </tr></thead>
             <tbody></tbody>
           </table>
         </div>
-        <div class="sale-day-note">Flag_O (คอลัมน์ AZ) อยู่บนแถว Source=STOCK ในไฟล์ยอดขาย บอก Aging ของสินค้าที่ค้างขายในแต่ละสาขา (W=120, N=150, O=180, &lt;O&gt;=360 วัน) • มูลค่าต้นทุนดึงจากคอลัมน์ Cost_Amt_Stock บนแถวเดียวกัน (ไม่ต้องใช้ไฟล์สต็อกแยก) • "รวมค้างนาน" = N + O + &lt;O&gt; (ค้างตั้งแต่ 150 วันขึ้นไป) เรียงจากมากไปน้อย • ขึ้นกับตัวกรองแบรนด์/หมวด/สาขาด้านบน ไม่ขึ้นกับแท็บ Daily/MTD/YTD</div>
+        <div class="sale-day-note">Flag_O (คอลัมน์ AZ) อยู่บนแถว Source=STOCK (คอลัมน์ A) ในไฟล์ยอดขาย บอก Aging ของสินค้าที่ค้างขายในแต่ละสาขา (W=120, N=150, O=180, &lt;O&gt;=360 วันที่ขายไม่ได้) • จำนวนชิ้นดึงจาก Stock_Qty (คอลัมน์ Z) และมูลค่าต้นทุนจาก Cost_Amt_Stock (คอลัมน์ X) บนแถวเดียวกัน (ไม่ต้องใช้ไฟล์สต็อกแยก) • "รวมค้างนาน" = N + O + &lt;O&gt; (ค้างตั้งแต่ 150 วันขึ้นไป) เรียงจากมากไปน้อย • ขึ้นกับตัวกรองแบรนด์/หมวด/สาขาด้านบน ไม่ขึ้นกับแท็บ Daily/MTD/YTD</div>
       </div>
     </div>
 
@@ -1259,35 +1259,37 @@ function renderAging(){
   }
 
   const rows=filteredAging();
-  const mkBucket=()=>({W:{cost:0,gd:new Set()},N:{cost:0,gd:new Set()},O:{cost:0,gd:new Set()},'<O>':{cost:0,gd:new Set()}});
+  const FLAGS=['W','N','O','<O>'];
+  const mkBucket=()=>({W:{cost:0,qty:0},N:{cost:0,qty:0},O:{cost:0,qty:0},'<O>':{cost:0,qty:0}});
   const storeNameMap={}; S.agingRows.forEach(r=>{ if(!storeNameMap[r.st]||storeNameMap[r.st]==='—') storeNameMap[r.st]=r.stn; });
   const byStore={}; const tot=mkBucket();
   for(const r of rows){
     const f=r.flag; if(!tot[f]) continue;
     const o=byStore[r.st] || (byStore[r.st]=mkBucket());
-    o[f].cost+=r.scost; o[f].gd.add(r.gd);
-    tot[f].cost+=r.scost; tot[f].gd.add(r.gd);
+    o[f].cost+=r.scost; o[f].qty+=r.sqty;
+    tot[f].cost+=r.scost; tot[f].qty+=r.sqty;
   }
   const deadCost=b=>b.N.cost+b.O.cost+b['<O>'].cost;
-  const deadSku=b=>new Set([...b.N.gd,...b.O.gd,...b['<O>'].gd]).size; // distinct GDNO across N/O/<O>
+  const deadQty=b=>b.N.qty+b.O.qty+b['<O>'].qty;
   const stores=Object.entries(byStore).map(([code,b])=>({code,name:storeNameMap[code]||code,b,dead:deadCost(b)}))
     .sort((a,b)=>b.dead-a.dead || b.b.W.cost-a.b.W.cost);
   const storesWithNO=stores.filter(s=>s.dead>0).length;
 
-  const totalDead=deadCost(tot);
-  $('#agingNote').textContent=`${rows.length.toLocaleString()} แถวสต็อกติดแฟล็ก Aging • ${stores.length} สาขามีสินค้าค้างขาย (${storesWithNO} สาขามีของค้าง 150 วันขึ้นไป) • มูลค่าต้นทุน (Cost_Amt_Stock) จากแถว Source=STOCK ในไฟล์ยอดขาย`;
+  const totalDead=deadCost(tot), totalDeadQty=deadQty(tot);
+  const totalUnits=FLAGS.reduce((a,f)=>a+tot[f].qty,0);
+  $('#agingNote').textContent=`${rows.length.toLocaleString()} แถวสต็อกติดแฟล็ก Aging • รวม ${nf0.format(totalUnits)} ชิ้น • ${stores.length} สาขามีสินค้าค้างขาย (${storesWithNO} สาขามีของค้าง 150 วันขึ้นไป) • นับชิ้นจาก Stock_Qty (col Z) มูลค่าจาก Cost_Amt_Stock (col X) บนแถว Source=STOCK`;
 
-  const cell=v=> v>0?baht(v):'—';
   $('#agingKpis').innerHTML=[
-    {k:'สต็อกค้างขาย N+O+&lt;O&gt; (150 วัน+)', v:baht(totalDead), sub:`${storesWithNO} สาขา • ${deadSku(tot)} SKU`},
-    {k:'W · ค้าง 120 วัน', v:baht(tot.W.cost), sub:`${tot.W.gd.size} SKU`},
-    {k:'N · ค้าง 150 วัน', v:baht(tot.N.cost), sub:`${tot.N.gd.size} SKU`},
-    {k:'O + &lt;O&gt; · ค้าง 180 วัน+', v:baht(tot.O.cost+tot['<O>'].cost), sub:`${tot.O.gd.size+tot['<O>'].gd.size} SKU`}
+    {k:'สต็อกค้างขาย N+O+&lt;O&gt; (150 วัน+)', v:baht(totalDead), sub:`${nf0.format(totalDeadQty)} ชิ้น • ${storesWithNO} สาขา`},
+    {k:'W · ค้าง 120 วัน', v:baht(tot.W.cost), sub:`${nf0.format(tot.W.qty)} ชิ้น`},
+    {k:'N · ค้าง 150 วัน', v:baht(tot.N.cost), sub:`${nf0.format(tot.N.qty)} ชิ้น`},
+    {k:'O + &lt;O&gt; · ค้าง 180 วัน+', v:baht(tot.O.cost+tot['<O>'].cost), sub:`${nf0.format(tot.O.qty+tot['<O>'].qty)} ชิ้น`}
   ].map(c=>`<div class="kpi"><div class="k">${c.k}</div><div class="v">${c.v}</div><div class="sub">${c.sub}</div></div>`).join('');
 
+  const cell=v=> v>0?baht(v):'—';
   const rowHTML=(label,s,cls)=>`<tr${cls?` class="${cls}"`:''}><td>${label}</td>
     <td>${cell(s.b.W.cost)}</td><td>${cell(s.b.N.cost)}</td><td>${cell(s.b.O.cost)}</td><td>${cell(s.b['<O>'].cost)}</td>
-    <td>${baht(s.dead)}</td><td>${nf0.format(deadSku(s.b))}</td></tr>`;
+    <td>${baht(s.dead)}</td><td>${nf0.format(deadQty(s.b))}</td></tr>`;
   $('#agingTbl tbody').innerHTML = stores.length ?
     rowHTML('รวมทั้งหมด (Total)', {b:tot,dead:totalDead}, 'total-row')
     + stores.map(s=>rowHTML(s.code===s.name?esc(s.code):`${esc(s.code)} — ${esc(s.name)}`, s)).join('')
