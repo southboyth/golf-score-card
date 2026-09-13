@@ -53,7 +53,7 @@ select:focus,input:focus{border-color:var(--brand);box-shadow:0 0 0 3px #2563eb2
 @media(max-width:820px){.kpis{grid-template-columns:repeat(2,1fr)}}
 .kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:var(--shadow)}
 .kpi .k{font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
-.kpi .v{font-size:24px;font-weight:850;margin:6px 0 3px;letter-spacing:-.5px}
+.kpi .v{font-size:24px;font-weight:850;margin:6px 0 3px;letter-spacing:-.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 @media(max-width:820px){.kpi .v{font-size:20px}}
 .kpi .sub{font-size:12px;color:var(--muted)}
 .kpi .sub>div+div{margin-top:3px}
@@ -864,7 +864,14 @@ function renderChannel(rowsCur){
 function renderCat(rowsCur){
   const g=groupSum(rowsCur,'sc'); const e=topN(g,8);
   const opt=baseOpts(); opt.indexAxis='y'; opt.plugins.legend.display=false;
-  opt.scales.x.ticks.callback=v=>compact(v); opt.scales.y.ticks.callback=undefined; opt.scales.y.grid={display:false};
+  // build fresh scale configs rather than mutating baseOpts()'s: its y-scale ticks.callback is a
+  // number formatter meant for a value axis, but on this horizontal chart y is the category axis —
+  // setting callback to undefined left the key present, which fed the category index (0,1,2…) into
+  // the tick label instead of falling through to the default "use the label text" behavior
+  opt.scales={
+    x:{ticks:{color:axisColor(),font:{size:10},callback:v=>compact(v)},grid:{color:gridColor()}},
+    y:{ticks:{color:axisColor(),font:{size:10}},grid:{display:false}}
+  };
   mkChart('catChart',{type:'bar',data:{labels:e.map(x=>x[0]),
     datasets:[{data:e.map(x=>x[1]),backgroundColor:CATCOLORS[4],borderRadius:4}]},options:opt});
 }
