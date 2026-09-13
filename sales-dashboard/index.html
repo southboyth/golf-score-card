@@ -43,6 +43,11 @@ body{padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom);min-heigh
 .seg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;background:var(--chip);padding:4px;border-radius:12px;max-width:420px}
 .seg button{border:0;background:transparent;border-radius:9px;padding:11px 4px;font-weight:800;color:var(--muted);cursor:pointer;font-size:14px}
 .seg button.active{background:var(--card);color:var(--brand);box-shadow:0 1px 6px #0002}
+.pagenav{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.pagenav button{flex:1;min-width:150px;border:1px solid var(--line);background:var(--card);color:var(--muted);
+  border-radius:12px;padding:13px 12px;font-weight:800;font-size:15px;cursor:pointer;transition:.15s}
+.pagenav button.active{background:var(--brand);color:#fff;border-color:transparent;box-shadow:var(--shadow)}
+.pagenav button:active{transform:scale(.99)}
 .filters{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .filters .fld{flex:1;min-width:150px}
 .filters label{display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:0 0 4px}
@@ -150,6 +155,11 @@ tr.total-row td:first-child{color:var(--brand)}
   <div id="dash" class="hide">
     <div class="warnbar hide" id="warnbar"></div>
 
+    <div class="pagenav" id="pagenav">
+      <button data-page="sales" class="active">📊 ยอดขาย (Sales)</button>
+      <button data-page="stock">📦 สต็อก &amp; Aging (Stock)</button>
+    </div>
+
     <div class="panel">
       <div class="seg" id="seg">
         <button data-v="daily">รายวัน (Daily)</button>
@@ -160,6 +170,8 @@ tr.total-row td:first-child{color:var(--brand)}
         <div class="fld"><label>ณ วันที่ (as of)</label><input type="date" id="refDate"></div>
       </div>
     </div>
+
+    <div id="pageSales">
 
     <div class="kpis" id="kpis"></div>
 
@@ -238,6 +250,36 @@ tr.total-row td:first-child{color:var(--brand)}
       <div class="sale-day-note">ATV = ยอดขาย/บิล • UPT = ชิ้น/บิล • ASP = ยอดขาย/ชิ้น • ยอด/วัน และพยากรณ์สิ้นเดือน คำนวณจากยอดสะสมเดือนนี้ (MTD) หารด้วยจำนวนวันที่ผ่านมา แล้วประมาณการเต็มเดือน • MoM/YoY เทียบยอดขาย MTD กับเดือนก่อน/ปีก่อนที่จำนวนวันเท่ากัน • % เป้าหมาย = ยอดขาย MTD ÷ เป้าหมายรายเดือน — ทั้งหมดนี้ไม่ขึ้นกับแท็บ Daily/MTD/YTD ด้านบน • ยังไม่ได้อัปโหลดไฟล์เป้าหมายจะแสดง "—"</div>
     </div>
 
+    </div><!-- /#pageSales -->
+
+    <div id="pageStock" class="hide">
+
+    <div class="panel" id="agingPanel">
+      <div class="chart-title" style="margin-bottom:2px">⏳ สต็อกค้างขาย (Aging / Dead Stock)</div>
+      <div class="chart-note" id="agingNote" style="margin-bottom:12px"></div>
+
+      <div id="agingEmpty">
+        <div class="empty" style="padding:20px 8px" id="agingEmptyMsg">—</div>
+      </div>
+
+      <div id="agingBody" class="hide">
+        <div class="kpis" id="agingKpis" style="margin-bottom:16px"></div>
+
+        <div class="subhead">มูลค่าสต็อกค้างขายรายสาขา (ต้นทุน)</div>
+        <div class="tbl-scroll" style="margin-bottom:12px">
+          <table id="agingTbl">
+            <thead><tr>
+              <th>สาขา</th>
+              <th>W · 120 วัน</th><th>N · 150 วัน</th><th>O · 180 วัน</th><th>&lt;O&gt; · 360 วัน</th>
+              <th>รวมค้างนาน (N+O+&lt;O&gt;)</th><th>SKU ค้างนาน</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="sale-day-note">Flag_O จากไฟล์ยอดขายบอก Aging ของสินค้าที่ขายไม่ได้ในแต่ละสาขา (W=120, N=150, O=180, &lt;O&gt;=360 วัน) • จับคู่กับไฟล์สต็อกด้วย สาขา + GDNO เพื่อดึง "มูลค่าต้นทุนสต็อก" ของสินค้าที่ติดแฟล็ก • "รวมค้างนาน" = N + O + &lt;O&gt; (ค้างตั้งแต่ 150 วันขึ้นไป) เรียงจากมากไปน้อย • ขึ้นกับตัวกรองแบรนด์/หมวด/สาขาด้านบน ไม่ขึ้นกับแท็บ Daily/MTD/YTD</div>
+      </div>
+    </div>
+
     <div class="panel" id="stockPanel">
       <div class="chart-title" style="margin-bottom:2px">📦 Stock &amp; Sell-Through</div>
       <div class="chart-note" id="stockNote" style="margin-bottom:12px"></div>
@@ -287,6 +329,8 @@ tr.total-row td:first-child{color:var(--brand)}
         <div class="sale-day-note">Sell-Through % = ขาย 90 วันล่าสุด ÷ (ขาย 90 วันล่าสุด + สต็อกคงเหลือ) • Weeks of Cover = สต็อกคงเหลือ ÷ ยอดขายเฉลี่ย/สัปดาห์ (เฉลี่ย 8 สัปดาห์ล่าสุด) • คำนวณ ณ วันที่สแนปช็อตสต็อก ไม่ขึ้นกับแท็บ Daily/MTD/YTD แต่ขึ้นกับตัวกรองแบรนด์/หมวดสินค้าด้านบน</div>
       </div>
     </div>
+
+    </div><!-- /#pageStock -->
 
     <div class="foot" id="foot"></div>
   </div>
@@ -350,10 +394,23 @@ const ALIAS = {
   coll:   ['Current Collection','Collection'],
   promoCode: ['Promotion_Code','PromotionCode'],
   promoName: ['Promotion_Name','PromotionName'],
-  discAmt:   ['Discount_Value','Discount_Amt']
+  discAmt:   ['Discount_Value','Discount_Amt'],
+  flagO:     ['Flag_O','FlagO','Aging_Flag','AgingFlag']
 };
 const NEED = ['date','net']; // minimum required to run
 const STOCK_SOURCE = 'STOCK'; // rows with this Source are inventory snapshots, not sales — excluded here
+
+/* ---------- aging flag (Flag_O) ---------- */
+// Flag_O marks how long an item has been unsellable in a store: W=120d, N=150d, O=180d, <O>=360d.
+// AGING_ORDER ranks severity so, when the same store+SKU appears on several rows with different
+// flags, we keep the worst one.
+const AGING_LABEL = {W:'W · 120 วัน', N:'N · 150 วัน', O:'O · 180 วัน', '<O>':'<O> · 360 วัน'};
+const AGING_ORDER = {W:1, N:2, O:3, '<O>':4};
+function normAgingFlag(v){
+  let s=String(v==null?'':v).trim().toUpperCase().replace(/\s+/g,'');
+  if(s==='<0>') s='<O>';           // OCR/typo: zero instead of letter O
+  return AGING_ORDER[s] ? s : '';
+}
 
 /* ---------- multi-select filter definitions ---------- */
 const FILTER_DEFS = [
@@ -364,7 +421,7 @@ const FILTER_DEFS = [
   {key:'store',     field:'st',  label:'สาขา'}
 ];
 
-const S = { rows:[], refDate:null, view:'ytd', filters:{}, charts:{}, netLabel:'Netsale (Excl VAT)', stockRows:[], stockAsOf:null, targets:{} };
+const S = { rows:[], refDate:null, view:'ytd', page:'sales', filters:{}, charts:{}, netLabel:'Netsale (Excl VAT)', stockRows:[], stockAsOf:null, targets:{} };
 let cloudUser=null;
 FILTER_DEFS.forEach(f=>S.filters[f.key]=new Set());
 const $ = s => document.querySelector(s);
@@ -475,7 +532,8 @@ function parseWorkbook(wb){
       md:String(get(row,'model')||'—'), gd:String(get(row,'gdno')||'—'),
       rc:String(get(row,'rcpt')||''), col:String(get(row,'coll')||'—'),
       pc:String(get(row,'promoCode')||''), pn:String(get(row,'promoName')||''),
-      da:Number(get(row,'discAmt'))||0
+      da:Number(get(row,'discAmt'))||0,
+      fo:normAgingFlag(get(row,'flagO'))
     });
   }
   if(!out.length) throw new Error('อ่านข้อมูลได้ 0 แถว — ตรวจสอบรูปแบบวันที่ในไฟล์');
@@ -597,9 +655,9 @@ function parseTargetWorkbook(wb){
 const LSKEY='salesdash_v3';
 // shared row <-> compact-array codecs, used by both localStorage and Firestore sync so the two
 // storage layers can never silently drift apart in field order
-const encodeSalesRow = r=>[iso(r.d),r.net,r.qty,r.cogs,r.gp,r.src,r.br,r.sc,r.st,r.stn,r.stp,r.md,r.gd,r.rc,r.col,r.pc,r.pn,r.da];
+const encodeSalesRow = r=>[iso(r.d),r.net,r.qty,r.cogs,r.gp,r.src,r.br,r.sc,r.st,r.stn,r.stp,r.md,r.gd,r.rc,r.col,r.pc,r.pn,r.da,r.fo||''];
 const decodeSalesRow = a=>{ const d=parseDate(a[0]); return {d,k:dayKey(d),y:d.getFullYear(),m:d.getMonth()+1,
-  net:a[1],qty:a[2],cogs:a[3],gp:a[4],src:a[5],br:a[6],sc:a[7],st:a[8],stn:a[9],stp:a[10],md:a[11],gd:a[12],rc:a[13],col:a[14],pc:a[15]||'',pn:a[16]||'',da:a[17]||0}; };
+  net:a[1],qty:a[2],cogs:a[3],gp:a[4],src:a[5],br:a[6],sc:a[7],st:a[8],stn:a[9],stp:a[10],md:a[11],gd:a[12],rc:a[13],col:a[14],pc:a[15]||'',pn:a[16]||'',da:a[17]||0,fo:a[18]||''}; };
 const encodeStockRow = r=>[r.st,r.gd,r.md,r.br,r.sc,r.qty,r.costUnit,r.retail,r.stockAmt,r.costAmt];
 const decodeStockRow = a=>({st:a[0],gd:a[1],md:a[2],br:a[3],sc:a[4],qty:a[5],costUnit:a[6],retail:a[7],stockAmt:a[8],costAmt:a[9]});
 function save(){
@@ -607,6 +665,7 @@ function save(){
     localStorage.setItem(LSKEY, JSON.stringify({
       rows:S.rows.map(encodeSalesRow),
       ref:iso(S.refDate),
+      page:S.page,
       filters:Object.fromEntries(FILTER_DEFS.map(f=>[f.key,[...S.filters[f.key]]])),
       netLabel:S.netLabel,
       stockRows:S.stockRows.map(encodeStockRow),
@@ -621,6 +680,7 @@ function load(){
     const o=JSON.parse(raw);
     S.rows=o.rows.map(decodeSalesRow);
     S.refDate=parseDate(o.ref);
+    if(o.page) S.page=o.page;
     if(o.netLabel) S.netLabel=o.netLabel;
     if(o.filters){ FILTER_DEFS.forEach(f=>{ S.filters[f.key]=new Set(o.filters[f.key]||[]); }); }
     if(o.stockRows){
@@ -1143,6 +1203,71 @@ function renderStock(){
     || '<tr><td colspan="10" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลสต็อกในตัวกรองที่เลือก</td></tr>';
 }
 
+function renderAging(){
+  // Match the sales file's Flag_O aging marker (per store+SKU) to the stock file's cost value,
+  // so a merchandiser sees the ฿ cost of stock that has been unsellable for 150+ days, by store.
+  const hasFlag=S.rows.some(r=>r.fo);
+  const hasStock=S.stockRows.length>0;
+  const canRun=hasFlag && hasStock;
+  $('#agingEmpty').classList.toggle('hide', canRun);
+  $('#agingBody').classList.toggle('hide', !canRun);
+  if(!canRun){
+    $('#agingNote').textContent='';
+    $('#agingEmptyMsg').textContent = !hasStock
+      ? 'ต้องมีทั้งไฟล์ยอดขาย (ที่มีคอลัมน์ Flag_O) และไฟล์สต็อก — กรุณาอัปโหลดไฟล์สต็อกด้วย เพื่อจับคู่มูลค่าต้นทุนของสินค้าค้างขาย'
+      : 'ไม่พบคอลัมน์ Flag_O ในไฟล์ยอดขาย — กรุณาอัปโหลดไฟล์ยอดขายที่มีคอลัมน์ Flag_O (ค่า W / N / O / <O>) เพื่อดูสต็อกค้างขาย';
+    return;
+  }
+
+  const flt=filtered(), stk=filteredStock();
+  // worst aging flag seen per store+GDNO (a store+SKU can appear on many sales rows)
+  const flagOf={};
+  for(const r of flt){
+    if(!r.fo) continue;
+    const key=r.st+'|'+r.gd;
+    if(!flagOf[key] || AGING_ORDER[r.fo]>AGING_ORDER[flagOf[key]]) flagOf[key]=r.fo;
+  }
+  const storeNameMap={}; S.rows.forEach(r=>{ if(!storeNameMap[r.st]) storeNameMap[r.st]=r.stn; });
+
+  // sum stock cost of flagged items by store x aging bucket, matching on store+GDNO
+  const FLAGS=['W','N','O','<O>'];
+  const mkBucket=()=>({W:{cost:0,gd:new Set()},N:{cost:0,gd:new Set()},O:{cost:0,gd:new Set()},'<O>':{cost:0,gd:new Set()}});
+  const byStore={};
+  const tot=mkBucket();
+  let matched=0;
+  for(const r of stk){
+    const f=flagOf[r.st+'|'+r.gd]; if(!f) continue;
+    matched++;
+    const o=byStore[r.st] || (byStore[r.st]=mkBucket());
+    o[f].cost+=r.costAmt; o[f].gd.add(r.gd);
+    tot[f].cost+=r.costAmt; tot[f].gd.add(r.gd);
+  }
+  const deadCost=b=>b.N.cost+b.O.cost+b['<O>'].cost;
+  const deadSku=b=>b.N.gd.size+b.O.gd.size+b['<O>'].gd.size; // buckets are disjoint (one flag per SKU)
+  const stores=Object.entries(byStore).map(([code,b])=>({code,name:storeNameMap[code]||code,b,dead:deadCost(b)}))
+    .sort((a,b)=>b.dead-a.dead || (b.b.W.cost)-(a.b.W.cost));
+  const storesWithNO=stores.filter(s=>s.dead>0).length;
+
+  const totalDead=deadCost(tot);
+  $('#agingNote').textContent=`จับคู่สินค้าติดแฟล็กได้ ${matched.toLocaleString()} แถวสต็อก • ${stores.length} สาขามีสินค้าค้างขาย (${storesWithNO} สาขามีของค้าง 150 วันขึ้นไป) • มูลค่าต้นทุน • ณ สต็อก ${S.stockAsOf?iso(S.stockAsOf):'—'}`;
+
+  const cell=v=> v>0?baht(v):'—';
+  $('#agingKpis').innerHTML=[
+    {k:'สต็อกค้างขาย N+O+&lt;O&gt; (150 วัน+)', v:baht(totalDead), sub:`${storesWithNO} สาขา • ${deadSku(tot)} SKU`},
+    {k:'W · ค้าง 120 วัน', v:baht(tot.W.cost), sub:`${tot.W.gd.size} SKU`},
+    {k:'N · ค้าง 150 วัน', v:baht(tot.N.cost), sub:`${tot.N.gd.size} SKU`},
+    {k:'O + &lt;O&gt; · ค้าง 180 วัน+', v:baht(tot.O.cost+tot['<O>'].cost), sub:`${tot.O.gd.size+tot['<O>'].gd.size} SKU`}
+  ].map(c=>`<div class="kpi"><div class="k">${c.k}</div><div class="v">${c.v}</div><div class="sub">${c.sub}</div></div>`).join('');
+
+  const rowHTML=(label,s,cls)=>`<tr${cls?` class="${cls}"`:''}><td>${label}</td>
+    <td>${cell(s.b.W.cost)}</td><td>${cell(s.b.N.cost)}</td><td>${cell(s.b.O.cost)}</td><td>${cell(s.b['<O>'].cost)}</td>
+    <td>${baht(s.dead)}</td><td>${nf0.format(deadSku(s.b))}</td></tr>`;
+  $('#agingTbl tbody').innerHTML = stores.length ?
+    rowHTML('รวมทั้งหมด (Total)', {b:tot,dead:totalDead}, 'total-row')
+    + stores.map(s=>rowHTML(s.code===s.name?esc(s.code):`${esc(s.code)} — ${esc(s.name)}`, s)).join('')
+    : '<tr><td colspan="7" style="text-align:center;color:var(--muted)">ไม่มีสินค้าติดแฟล็ก Flag_O ในตัวกรองที่เลือก</td></tr>';
+}
+
 function renderAll(){
   const f=filtered(); const R=ranges();
   const rc=f.filter(r=>inRange(r,R.cur[0],R.cur[1]));
@@ -1154,6 +1279,7 @@ function renderAll(){
   renderTrend(rc); renderChannel(rc); renderCat(rc); renderTable(rc,rl); renderPromo(rc,rl);
   renderStoreTable();
   renderStock();
+  renderAging();
   $('#foot').textContent=`ช่วงข้อมูลที่แสดง: ${iso(R.cur[0])} → ${iso(R.cur[1])} • เทียบปีก่อน ${iso(R.ly[0])} → ${iso(R.ly[1])}`
     + (R.lm?` • เทียบเดือนก่อน ${iso(R.lm[0])} → ${iso(R.lm[1])}`:'')
     + ` • ${S.rows.length.toLocaleString()} แถว`;
@@ -1230,6 +1356,15 @@ function buildFilters(){
   });
 }
 
+/* ---------- page navigation (Sales / Stock) ---------- */
+function applyPage(){
+  const p=S.page;
+  $('#pageSales').classList.toggle('hide', p!=='sales');
+  $('#pageStock').classList.toggle('hide', p!=='stock');
+  // the Daily/MTD/YTD toggle only shapes the sales views; stock/aging are snapshot-based, so hide it there
+  $('#seg').classList.toggle('hide', p!=='sales');
+  document.querySelectorAll('#pagenav button').forEach(b=>b.classList.toggle('active', b.dataset.page===p));
+}
 /* ---------- boot / events ---------- */
 function showDash(){
   $('#emptyState').classList.add('hide');
@@ -1243,7 +1378,7 @@ function showDash(){
   if(!S.refDate) S.refDate=max.d;
   $('#refDate').min=iso(min.d); $('#refDate').max=iso(max.d); $('#refDate').value=iso(S.refDate);
   $('#asof').textContent='ข้อมูล '+iso(min.d)+' → '+iso(max.d)+' • ณ วันที่ '+iso(S.refDate);
-  buildFilters(); renderAll();
+  buildFilters(); applyPage(); renderAll();
 }
 function handleFile(file){
   const rd=new FileReader();
@@ -1318,6 +1453,13 @@ drop.addEventListener('drop',e=>{ if(e.dataTransfer.files[0]) handleFile(e.dataT
 $('#seg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b)return;
   [...$('#seg').children].forEach(x=>x.classList.remove('active')); b.classList.add('active');
   S.view=b.dataset.v; renderAll(); });
+$('#pagenav').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b)return;
+  S.page=b.dataset.page; applyPage();
+  // Chart.js sizes to its container; charts drawn while their page was hidden come out 0px,
+  // so re-render once the target page is visible (also refreshes the newly shown page's data)
+  renderAll(); save();
+  window.scrollTo({top:0,behavior:'smooth'});
+});
 $('#refDate').onchange=e=>{ S.refDate=parseDate(e.target.value)||S.refDate; $('#asof').textContent=$('#asof').textContent.replace(/ณ วันที่ .*/,'ณ วันที่ '+iso(S.refDate)); renderAll(); save(); };
 $('#clearBtn').onclick=()=>{ if(confirm('ล้างข้อมูลทั้งหมด?')){ localStorage.removeItem(LSKEY); location.reload(); } };
 $('#exportBtn').onclick=()=>{
