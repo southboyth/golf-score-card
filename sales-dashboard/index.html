@@ -887,6 +887,7 @@ function agg(rows){
   const o={net:0,qty:0,cogs:0,gp:0,billSum:0,bills:new Set()};
   for(const r of rows){ o.net+=r.net; o.qty+=r.qty; o.cogs+=r.cogs; o.gp+=r.gp; o.billSum+=r.bc||0; if(r.rc) o.bills.add(r.rc); }
   o.nbills=billsOf(o); o.asp=o.qty?o.net/o.qty:0; o.gppct=o.net?o.gp/o.net*100:0; o.avgbill=o.nbills>0?o.net/o.nbills:0;
+  o.upt=o.nbills>0?o.qty/o.nbills:0;
   return o;
 }
 function groupSum(rows,key){ const m={}; for(const r of rows){ m[r[key]]=(m[r[key]]||0)+r.net; } return m; }
@@ -901,10 +902,11 @@ function renderKPIs(cur,ly,lm){
     {k:'กำไรขั้นต้น (GP)', f:'gp', fmt:compact, extra:'GP '+nf1.format(cur.gppct)+'%'},
     {k:'ราคาขายเฉลี่ย/ชิ้น (ASP)', f:'asp', fmt:compact},
     {k:'จำนวนบิล', f:'nbills', fmt:nf0.format},
-    {k:'ยอดเฉลี่ย/บิล', f:'avgbill', fmt:compact},
+    {k:'ยอดเฉลี่ย/บิล (ATV)', f:'avgbill', fmt:compact},
+    {k:'UPT (ชิ้น/บิล)', f:'upt', fmt:v=>nf1.format(v)},
     {k:'ต้นทุนขาย (COGS)', f:'cogs', fmt:compact}
   ];
-  const valFmt={net:baht,qty:v=>nf0.format(v)+' ชิ้น',gp:baht,asp:baht,nbills:nf0.format,avgbill:baht,cogs:baht};
+  const valFmt={net:baht,qty:v=>nf0.format(v)+' ชิ้น',gp:baht,asp:baht,nbills:nf0.format,avgbill:baht,upt:v=>nf1.format(v)+' ชิ้น/บิล',cogs:baht};
   const cards=defs.map(d=>{
     const v=valFmt[d.f](cur[d.f]);
     const yoyLine=`<div>ปีก่อน ${d.fmt(ly[d.f])} ${deltaHTML(cur[d.f],ly[d.f],'YoY')}</div>`;
