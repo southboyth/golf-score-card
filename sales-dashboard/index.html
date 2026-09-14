@@ -914,8 +914,20 @@ function renderKPIs(cur,ly,lm){
     const extra=d.extra?`<div>${d.extra}</div>`:'';
     return `<div class="kpi"><div class="k">${d.k}</div><div class="v">${v}</div><div class="sub">${extra}${yoyLine}${momLine}</div></div>`;
   });
-  cards.push(`<div class="kpi"><div class="k">จำนวนวันมียอดขาย</div><div class="v">${nf0.format(cur._days||0)}</div>
-    <div class="sub"><div>เฉลี่ย/วัน ${compact(cur._days?cur.net/cur._days:0)}</div></div></div>`);
+  // Sale/Day (view-scoped): net over the selected range ÷ number of days that had sales
+  const perDayView = cur._days ? cur.net/cur._days : 0;
+  cards.push(`<div class="kpi"><div class="k">ยอดขาย/วัน (Sale/Day)</div><div class="v">${baht(perDayView)}</div>
+    <div class="sub"><div>${nf0.format(cur._days||0)} วันมียอดขาย</div></div></div>`);
+
+  // Forecast to end of month: current month's run-rate projected to the full month, always based on
+  // refDate's month (MTD ÷ days elapsed × days in month) regardless of the Daily/MTD/YTD toggle
+  const ref=S.refDate, y=ref.getFullYear(), mo=ref.getMonth();
+  const daysInMonth=new Date(y,mo+1,0).getDate(), daysElapsed=ref.getDate();
+  const monthStart=new Date(y,mo,1);
+  const monthNet=filtered().reduce((a,r)=>inRange(r,monthStart,ref)?a+r.net:a,0);
+  const perDayMonth=daysElapsed?monthNet/daysElapsed:0, forecast=perDayMonth*daysInMonth;
+  cards.push(`<div class="kpi"><div class="k">พยากรณ์สิ้นเดือน (Forecast)</div><div class="v">${baht(forecast)}</div>
+    <div class="sub"><div>เดือน ${mo+1}/${y} • ${daysElapsed}/${daysInMonth} วัน</div><div>ยอดเดือนนี้ ${compact(monthNet)} • เฉลี่ย/วัน ${compact(perDayMonth)}</div></div></div>`);
   $('#kpis').innerHTML=cards.join('');
 }
 function mkChart(id,cfg){ if(S.charts[id]) S.charts[id].destroy(); S.charts[id]=new Chart($('#'+id),cfg); }
