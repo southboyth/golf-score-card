@@ -251,7 +251,7 @@ tr.total-row td:first-child{color:var(--brand)}
           <tbody></tbody>
         </table>
       </div>
-      <div class="sale-day-note">ATV = ยอดขาย/บิล • UPT = ชิ้น/บิล • ASP = ยอดขาย/ชิ้น • ยอด/วัน และพยากรณ์สิ้นเดือน คำนวณจากยอดสะสมเดือนนี้ (MTD) หารด้วยจำนวนวันที่ผ่านมา แล้วประมาณการเต็มเดือน • MoM/YoY เทียบยอดขาย MTD กับเดือนก่อน/ปีก่อนที่จำนวนวันเท่ากัน • % เป้าหมาย = ยอดขาย MTD ÷ เป้าหมายรายเดือน — ทั้งหมดนี้ไม่ขึ้นกับแท็บ Daily/MTD/YTD ด้านบน • ยังไม่ได้อัปโหลดไฟล์เป้าหมายจะแสดง "—"</div>
+      <div class="sale-day-note">ตารางนี้เปลี่ยนตามแท็บ Daily/MTD/YTD ด้านบน • ATV = ยอดขาย/บิล • UPT = ชิ้น/บิล • ASP = ยอดขาย/ชิ้น • ยอด/วัน = ยอดขายในช่วง ÷ จำนวนวันในช่วง • MoM/YoY เทียบช่วงเดียวกันของเดือน/ปีก่อน (MoM ไม่แสดงในแท็บ YTD) • พยากรณ์สิ้นเดือน และ เป้าหมาย/%เป้าหมาย เป็นค่ารายเดือน จะแสดงเฉพาะแท็บ MTD (แท็บอื่นขึ้น "—") • ยังไม่ได้อัปโหลดไฟล์เป้าหมายจะแสดง "—"</div>
     </div>
 
     </div><!-- /#pageSales -->
@@ -1089,47 +1089,50 @@ function renderPromo(rowsCur, rowsLy){
   }).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลโปรโมชั่นในช่วงที่เลือก</td></tr>';
 }
 
-function kpiRow(o, daysElapsed, daysInMonth){
+function kpiRow(o, rangeDays, daysInMonth){
   const bills=billsOf(o);
   const atv=bills?o.net/bills:0, upt=bills?o.qty/bills:0, asp=o.qty?o.net/o.qty:0;
-  const perDay=daysElapsed?o.net/daysElapsed:0, forecast=perDay*daysInMonth;
+  const perDay=rangeDays?o.net/rangeDays:0;
+  // forecast to end of month only makes sense in the MTD view (rangeDays = days elapsed this month);
+  // daysInMonth is passed only for MTD, so forecast stays null (shown as "—") for Daily/YTD
+  const forecast=daysInMonth?perDay*daysInMonth:null;
   return {...o, bills, atv, upt, asp, perDay, forecast};
 }
 function kpiRowHTML(labelHTML, extraTd, r, rowClass, trailingTd){
   return `<tr${rowClass?` class="${rowClass}"`:''}><td>${labelHTML}</td>${extraTd}
       <td>${baht(r.net)}</td><td>${nf0.format(r.qty)}</td><td>${nf0.format(r.bills)}</td>
       <td>${baht(r.atv)}</td><td>${nf1.format(r.upt)}</td><td>${baht(r.asp)}</td>
-      <td>${baht(r.perDay)}</td><td>${baht(r.forecast)}</td>${trailingTd||''}
+      <td>${baht(r.perDay)}</td><td>${r.forecast!=null?baht(r.forecast):'—'}</td>${trailingTd||''}
     </tr>`;
 }
 
 function renderStoreTable(){
-  // Store-level Retail KPI: always scoped to MTD-of-refDate, independent of the Daily/MTD/YTD toggle,
-  // because Sale/Day and Forecast-EOM are inherently monthly run-rate metrics.
-  const ref=S.refDate;
-  const y=ref.getFullYear(), mo=ref.getMonth();
-  const monthStart=new Date(y,mo,1);
-  const daysInMonth=new Date(y,mo+1,0).getDate();
-  const daysElapsed=ref.getDate();
+  // Store-level Retail KPI, now scoped to the selected Daily/MTD/YTD range (via ranges()). Forecast to
+  // end-of-month and the monthly Target/%Target columns only make sense for MTD, so they show "—" in
+  // the Daily and YTD views; MoM/YoY reuse the view's own comparison ranges (with the same day cutoff).
+  const ref=S.refDate, y=ref.getFullYear(), mo=ref.getMonth();
+  const R=ranges();
+  const isMTD=S.view==='mtd';
+  const daysInMonth=isMTD?new Date(y,mo+1,0).getDate():null; // passed to kpiRow only for MTD -> forecast
+  const rangeDays=Math.round((R.cur[1]-R.cur[0])/86400000)+1; // calendar days in the selected range
   const flt=filtered();
-  const rows=flt.filter(r=>inRange(r,monthStart,ref));
+  const rows=flt.filter(r=>inRange(r,R.cur[0],R.cur[1]));
 
-  // MoM/YoY comparison periods, using the same "same day-of-month cutoff" logic as the main KPI cards
-  const lmRef=addMonthsClamp(ref,-1), lmStart=new Date(lmRef.getFullYear(),lmRef.getMonth(),1);
-  const lyStart=shiftYear(monthStart,-1), lyRef=shiftYear(ref,-1);
-  const rowsLm=flt.filter(r=>inRange(r,lmStart,lmRef));
-  const rowsLy=flt.filter(r=>inRange(r,lyStart,lyRef));
+  // MoM/YoY comparison periods come straight from the view's ranges() (MoM absent in YTD -> R.lm null)
+  const hasLm=!!R.lm;
+  const rowsLm=hasLm?flt.filter(r=>inRange(r,R.lm[0],R.lm[1])):[];
+  const rowsLy=flt.filter(r=>inRange(r,R.ly[0],R.ly[1]));
   const netByStoreLm=groupSum(rowsLm,'st'), netByStoreLy=groupSum(rowsLy,'st');
   const netByTypeLm=groupSum(rowsLm,'stp'), netByTypeLy=groupSum(rowsLy,'stp');
   const totalLm=rowsLm.reduce((a,r)=>a+r.net,0), totalLy=rowsLy.reduce((a,r)=>a+r.net,0);
-  const cmpTd=(net,lm,ly)=>`<td>${deltaHTML(net,lm)}</td><td>${deltaHTML(net,ly)}</td>`;
+  const cmpTd=(net,lm,ly)=>`<td>${hasLm?deltaHTML(net,lm):'—'}</td><td>${deltaHTML(net,ly)}</td>`;
 
-  // monthly operation target, from an uploaded target template (Store_Code x YYYY-MM); shows "—" when
-  // no target is set for a store/month rather than a misleading 0% achievement
+  // monthly operation target (Store_Code x YYYY-MM of refDate's month) — only shown in the MTD view,
+  // "—" elsewhere and when no target is set (avoids a misleading 0% achievement)
   const ymKey=`${y}-${String(mo+1).padStart(2,'0')}`;
-  const targetOf=code=>S.targets[code+'|'+ymKey]||0;
+  const targetOf=code=>isMTD?(S.targets[code+'|'+ymKey]||0):0;
   const targetTd=(net,target)=>{
-    if(!target) return '<td>—</td><td>—</td>';
+    if(!isMTD||!target) return '<td>—</td><td>—</td>';
     const pct=net/target*100;
     const cls=pct>=100?'up':pct>=80?'flat':'down';
     return `<td>${baht(target)}</td><td><span class="delta ${cls}">${nf1.format(pct)}%</span></td>`;
@@ -1141,7 +1144,7 @@ function renderStoreTable(){
     const o=byStore[r.st] || (byStore[r.st]={net:0,qty:0,billSum:0,bills:new Set(),stn:r.stn,stp:r.stp});
     o.net+=r.net; o.qty+=r.qty; o.billSum+=r.bc||0; if(r.rc) o.bills.add(r.rc);
   }
-  const storeList=Object.entries(byStore).map(([code,o])=>({code, target:targetOf(code), ...kpiRow(o,daysElapsed,daysInMonth)}))
+  const storeList=Object.entries(byStore).map(([code,o])=>({code, target:targetOf(code), ...kpiRow(o,rangeDays,daysInMonth)}))
     .sort((a,b)=>b.net-a.net);
 
   // per-store-type + overall total — target rolled up from each store's own target
@@ -1154,20 +1157,22 @@ function renderStoreTable(){
     total.net+=r.net; total.qty+=r.qty; total.billSum+=r.bc||0; if(r.rc) total.bills.add(r.rc); total.storeSet.add(r.st);
   }
   storeList.forEach(s=>{ targetByType[s.stp]=(targetByType[s.stp]||0)+s.target; totalTarget+=s.target; });
-  const typeList=Object.entries(byType).map(([tp,o])=>({tp, nstores:o.storeSet.size, ...kpiRow(o,daysElapsed,daysInMonth)}))
+  const typeList=Object.entries(byType).map(([tp,o])=>({tp, nstores:o.storeSet.size, ...kpiRow(o,rangeDays,daysInMonth)}))
     .sort((a,b)=>b.net-a.net);
-  const totalRow=kpiRow(total,daysElapsed,daysInMonth);
+  const totalRow=kpiRow(total,rangeDays,daysInMonth);
 
-  $('#storeNote').textContent=`เดือน ${mo+1}/${y} • สะสมถึงวันที่ ${daysElapsed} จาก ${daysInMonth} วัน • ${storeList.length} สาขาที่มียอดขาย • MoM เทียบ ${iso(lmStart)}→${iso(lmRef)} • YoY เทียบ ${iso(lyStart)}→${iso(lyRef)}`
-    + (totalTarget?` • เป้าหมายรวม ${iso(monthStart)} → ${baht(totalTarget)}`:' • ยังไม่ได้อัปโหลดไฟล์เป้าหมายของเดือนนี้');
+  const viewLabel=S.view==='daily'?'รายวัน (Daily)':isMTD?'เดือนนี้ (MTD)':'ปีนี้ (YTD)';
+  $('#storeNote').textContent=`ช่วง ${viewLabel}: ${iso(R.cur[0])} → ${iso(R.cur[1])} • ${storeList.length} สาขาที่มียอดขาย • ${hasLm?'MoM/YoY':'YoY'} เทียบช่วงเดียวกันของเดือน/ปีก่อน`
+    + (isMTD ? (totalTarget?` • เป้าหมายเดือนนี้ ${baht(totalTarget)}`:' • ยังไม่ได้อัปโหลดไฟล์เป้าหมายของเดือนนี้')
+             : ' • พยากรณ์สิ้นเดือน/เป้าหมาย แสดงเฉพาะแท็บ MTD');
 
   $('#storeTypeTbl tbody').innerHTML = rows.length ?
     kpiRowHTML('รวมทั้งหมด (Total)', `<td>${nf0.format(total.storeSet.size)}</td>`, totalRow, 'total-row', cmpTd(total.net,totalLm,totalLy)+targetTd(total.net,totalTarget))
     + typeList.map(t=>kpiRowHTML(esc(t.tp), `<td>${nf0.format(t.nstores)}</td>`, t, null, cmpTd(t.net,netByTypeLm[t.tp]||0,netByTypeLy[t.tp]||0)+targetTd(t.net,targetByType[t.tp]||0))).join('')
-    : '<tr><td colspan="14" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลในเดือนนี้</td></tr>';
+    : '<tr><td colspan="14" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลในช่วงที่เลือก</td></tr>';
 
   $('#storeTbl tbody').innerHTML = storeList.map(s=>kpiRowHTML(`${esc(s.code)} — ${esc(s.stn)}`, `<td>${esc(s.stp)}</td>`, s, null, cmpTd(s.net,netByStoreLm[s.code]||0,netByStoreLy[s.code]||0)+targetTd(s.net,s.target))).join('')
-    || '<tr><td colspan="14" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลในเดือนนี้</td></tr>';
+    || '<tr><td colspan="14" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลในช่วงที่เลือก</td></tr>';
 }
 
 function stockRowHTML(m, withAbc){
