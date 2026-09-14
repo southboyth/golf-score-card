@@ -343,6 +343,7 @@ tr.total-row td:first-child{color:var(--brand)}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
 <script type="module">
   // Firebase sync — lets the same uploaded data show up on any signed-in device (e.g. iPad),
   // not just the browser it was uploaded from. Module scripts always run after the document has
@@ -681,6 +682,14 @@ function parseTargetWorkbook(wb){
   return targets;
 }
 
+/* ---------- gzip compression (shrinks payload ~9x for both localStorage and Firestore) ---------- */
+// large Uint8Array -> base64 without blowing the call-stack, and back
+function u8ToB64(u8){ let s=''; const CH=0x8000; for(let i=0;i<u8.length;i+=CH) s+=String.fromCharCode.apply(null,u8.subarray(i,i+CH)); return btoa(s); }
+function b64ToU8(b64){ const bin=atob(b64); const u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i); return u8; }
+function gzToB64(str){ return u8ToB64(pako.gzip(str)); }
+function b64ToStr(b64){ return pako.ungzip(b64ToU8(b64), {to:'string'}); }
+const hasPako = () => typeof pako!=='undefined';
+
 /* ---------- persistence (columnar, quota-safe) ---------- */
 const LSKEY='salesdash_v3';
 // shared row <-> compact-array codecs, used by both localStorage and Firestore sync so the two
@@ -694,7 +703,7 @@ const encodeAgingRow = r=>[r.st,r.stn,r.gd,r.br,r.sc,r.stp,r.flag,r.sqty,r.samt,
 const decodeAgingRow = a=>({st:a[0],stn:a[1],gd:a[2],br:a[3],sc:a[4],stp:a[5],flag:a[6],sqty:a[7],samt:a[8],scost:a[9]});
 function save(){
   try{
-    localStorage.setItem(LSKEY, JSON.stringify({
+    const payload=JSON.stringify({
       rows:S.rows.map(encodeSalesRow),
       ref:iso(S.refDate),
       page:S.page,
@@ -706,12 +715,17 @@ function save(){
       stockAsOf:S.stockAsOf?iso(S.stockAsOf):null,
       targets:S.targets,
       agingRows:S.agingRows.map(encodeAgingRow)
-    }));
-  }catch(e){ /* quota exceeded (large stock files can push past the browser limit) -> session only */ }
+    });
+    // gzip so multi-brand datasets fit the ~5MB localStorage quota (raw JSON can be 10MB+)
+    let toStore=payload;
+    if(hasPako()){ try{ toStore='gz:'+gzToB64(payload); }catch(e){ toStore=payload; } }
+    localStorage.setItem(LSKEY, toStore);
+  }catch(e){ /* quota exceeded even after compression -> session only */ }
 }
 function load(){
   try{
-    const raw=localStorage.getItem(LSKEY); if(!raw) return false;
+    let raw=localStorage.getItem(LSKEY); if(!raw) return false;
+    if(raw.slice(0,3)==='gz:') raw=b64ToStr(raw.slice(3));  // compressed payload (current format)
     const o=JSON.parse(raw);
     S.rows=o.rows.map(decodeSalesRow);
     S.refDate=parseDate(o.ref);
@@ -731,25 +745,27 @@ function load(){
 }
 
 /* ---------- Firebase cloud sync (optional — only active once signed in) ---------- */
-// Firestore forbids an array directly containing another array, so each chunk is stored as one
-// JSON string rather than an array of row-arrays; CLOUD_CHUNK is sized to stay well under the
-// 1MiB per-document limit even for rows with long promotion-name text.
-const CLOUD_CHUNK=1500;
+// The whole collection is encoded to one JSON string, gzipped, base64'd, then split into
+// <900KB string pieces stored one per doc — this keeps every doc well under Firestore's 1MiB
+// limit even for big multi-brand datasets (raw JSON of 10MB+ compresses to ~1MB). Older
+// uncompressed docs (meta without gz flag) are still read for backward compatibility.
+const CLOUD_PIECE=900000;
 function setSyncStatus(msg){ const el=$('#syncStatus'); if(el) el.textContent=msg; }
 async function pushCollectionToCloud(rows, colName, encodeRow, extraMeta){
   const {db,doc,getDoc,writeBatch}=window.fb;
   const metaRef=doc(db,'company/main/meta',colName);
   const oldMetaSnap=await getDoc(metaRef);
   const oldCount=oldMetaSnap.exists()?(oldMetaSnap.data().chunkCount||0):0;
-  const chunks=[]; for(let i=0;i<rows.length;i+=CLOUD_CHUNK) chunks.push(JSON.stringify(rows.slice(i,i+CLOUD_CHUNK).map(encodeRow)));
+  const b64=gzToB64(JSON.stringify(rows.map(encodeRow)));
+  const chunks=[]; for(let i=0;i<b64.length;i+=CLOUD_PIECE) chunks.push(b64.slice(i,i+CLOUD_PIECE));
   let batch=writeBatch(db), ops=0;
   const flush=async()=>{ if(ops>0){ await batch.commit(); batch=writeBatch(db); ops=0; } };
   for(let i=0;i<chunks.length;i++){
-    batch.set(doc(db,'company/main/'+colName,String(i)),{data:chunks[i]}); ops++;
+    batch.set(doc(db,'company/main/'+colName,String(i)),{data:chunks[i],gz:true}); ops++;
     if(ops>=400) await flush();
   }
   for(let i=chunks.length;i<oldCount;i++){ batch.delete(doc(db,'company/main/'+colName,String(i))); ops++; if(ops>=400) await flush(); }
-  batch.set(metaRef, Object.assign({chunkCount:chunks.length,updatedAt:Date.now(),updatedBy:cloudUser?cloudUser.email:''}, extraMeta||{}));
+  batch.set(metaRef, Object.assign({chunkCount:chunks.length,gz:true,updatedAt:Date.now(),updatedBy:cloudUser?cloudUser.email:''}, extraMeta||{}));
   ops++;
   await flush();
 }
@@ -759,7 +775,13 @@ async function pullCollectionFromCloud(colName){
   if(!metaSnap.exists()) return null;
   const meta=metaSnap.data();
   const snaps=await Promise.all(Array.from({length:meta.chunkCount},(_,i)=>getDoc(doc(db,'company/main/'+colName,String(i)))));
-  const rows=[]; snaps.forEach(s=>{ if(s.exists()) rows.push(...JSON.parse(s.data().data)); });
+  let rows;
+  if(meta.gz){
+    let b64=''; snaps.forEach(s=>{ if(s.exists()) b64+=s.data().data; });
+    rows = b64 ? JSON.parse(b64ToStr(b64)) : [];
+  }else{
+    rows=[]; snaps.forEach(s=>{ if(s.exists()) rows.push(...JSON.parse(s.data().data)); }); // legacy uncompressed
+  }
   return {rows, meta};
 }
 async function syncSalesUp(){
