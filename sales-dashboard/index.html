@@ -392,6 +392,7 @@ const ALIAS = {
   store:  ['Store_Code','StoreCode','Store'],
   storeN: ['Store_Name','StoreName'],
   storeT: ['Store.Type','Store_Type','StoreType'],
+  billCnt:['Bill Count','BillCount','Bill_Count'],
   model:  ['ModelName','Model_Name','Model','Product_Name','ProductName'],
   gdno:   ['GDNO','Style','StyleCode','SKU'],
   rcpt:   ['Receipt_No','ReceiptNo','Bill_No','Invoice'],
@@ -429,7 +430,7 @@ const FILTER_DEFS = [
   {key:'store',     field:'st',  label:'สาขา'}
 ];
 
-const S = { rows:[], refDate:null, view:'ytd', page:'sales', filters:{}, charts:{}, netLabel:'Netsale (Excl VAT)', stockRows:[], stockAsOf:null, targets:{}, agingRows:[], sort:{} };
+const S = { rows:[], refDate:null, view:'ytd', page:'sales', filters:{}, charts:{}, netLabel:'Netsale (Excl VAT)', stockRows:[], stockAsOf:null, targets:{}, agingRows:[], sort:{}, hasBillCount:false };
 let cloudUser=null;
 FILTER_DEFS.forEach(f=>S.filters[f.key]=new Set());
 const $ = s => document.querySelector(s);
@@ -521,6 +522,9 @@ function parseWorkbook(wb){
   const map=mapCols(headers);
   for(const k of NEED) if(map[k]==null) throw new Error('ไม่พบคอลัมน์ที่จำเป็น: '+ALIAS[k][0]);
   S.netLabel = String(headers[map.net]).includes('Inc')?'Netsale (Incl VAT)':'Netsale (Excl VAT)';
+  // the retailer's own "Bill Count" column is the source of truth for #bills (1 on a bill's main
+  // line, -1 for a return, 0 on extra lines); sum it when present, else fall back to distinct receipts
+  S.hasBillCount = map.billCnt!=null;
   const get=(row,k)=> map[k]!=null?row[map[k]]:null;
   const out=[], aging=[]; let skippedStock=0;
   for(let r=pick.headerRow+1;r<arr.length;r++){
@@ -557,7 +561,8 @@ function parseWorkbook(wb){
       md:String(get(row,'model')||'—'), gd:String(get(row,'gdno')||'—'),
       rc:String(get(row,'rcpt')||''), col:String(get(row,'coll')||'—'),
       pc:String(get(row,'promoCode')||''), pn:String(get(row,'promoName')||''),
-      da:Number(get(row,'discAmt'))||0
+      da:Number(get(row,'discAmt'))||0,
+      bc:Number(get(row,'billCnt'))||0
     });
   }
   if(!out.length) throw new Error('อ่านข้อมูลได้ 0 แถว — ตรวจสอบรูปแบบวันที่ในไฟล์');
@@ -680,9 +685,9 @@ function parseTargetWorkbook(wb){
 const LSKEY='salesdash_v3';
 // shared row <-> compact-array codecs, used by both localStorage and Firestore sync so the two
 // storage layers can never silently drift apart in field order
-const encodeSalesRow = r=>[iso(r.d),r.net,r.qty,r.cogs,r.gp,r.src,r.br,r.sc,r.st,r.stn,r.stp,r.md,r.gd,r.rc,r.col,r.pc,r.pn,r.da];
+const encodeSalesRow = r=>[iso(r.d),r.net,r.qty,r.cogs,r.gp,r.src,r.br,r.sc,r.st,r.stn,r.stp,r.md,r.gd,r.rc,r.col,r.pc,r.pn,r.da,r.bc||0];
 const decodeSalesRow = a=>{ const d=parseDate(a[0]); return {d,k:dayKey(d),y:d.getFullYear(),m:d.getMonth()+1,
-  net:a[1],qty:a[2],cogs:a[3],gp:a[4],src:a[5],br:a[6],sc:a[7],st:a[8],stn:a[9],stp:a[10],md:a[11],gd:a[12],rc:a[13],col:a[14],pc:a[15]||'',pn:a[16]||'',da:a[17]||0}; };
+  net:a[1],qty:a[2],cogs:a[3],gp:a[4],src:a[5],br:a[6],sc:a[7],st:a[8],stn:a[9],stp:a[10],md:a[11],gd:a[12],rc:a[13],col:a[14],pc:a[15]||'',pn:a[16]||'',da:a[17]||0,bc:a[18]||0}; };
 const encodeStockRow = r=>[r.st,r.gd,r.md,r.br,r.sc,r.qty,r.costUnit,r.retail,r.stockAmt,r.costAmt];
 const decodeStockRow = a=>({st:a[0],gd:a[1],md:a[2],br:a[3],sc:a[4],qty:a[5],costUnit:a[6],retail:a[7],stockAmt:a[8],costAmt:a[9]});
 const encodeAgingRow = r=>[r.st,r.stn,r.gd,r.br,r.sc,r.stp,r.flag,r.sqty,r.samt,r.scost];
@@ -696,6 +701,7 @@ function save(){
       sort:S.sort,
       filters:Object.fromEntries(FILTER_DEFS.map(f=>[f.key,[...S.filters[f.key]]])),
       netLabel:S.netLabel,
+      hasBillCount:S.hasBillCount,
       stockRows:S.stockRows.map(encodeStockRow),
       stockAsOf:S.stockAsOf?iso(S.stockAsOf):null,
       targets:S.targets,
@@ -712,6 +718,7 @@ function load(){
     if(o.page) S.page=o.page;
     if(o.sort) S.sort=o.sort;
     if(o.netLabel) S.netLabel=o.netLabel;
+    S.hasBillCount=!!o.hasBillCount;
     if(o.filters){ FILTER_DEFS.forEach(f=>{ S.filters[f.key]=new Set(o.filters[f.key]||[]); }); }
     if(o.stockRows){
       S.stockRows=o.stockRows.map(decodeStockRow);
@@ -758,7 +765,7 @@ async function pullCollectionFromCloud(colName){
 async function syncSalesUp(){
   if(!cloudUser) return;
   setSyncStatus('🔄 กำลังซิงค์ยอดขายขึ้นคลาวด์...');
-  try{ await pushCollectionToCloud(S.rows,'sales',encodeSalesRow,{netLabel:S.netLabel});
+  try{ await pushCollectionToCloud(S.rows,'sales',encodeSalesRow,{netLabel:S.netLabel,hasBillCount:S.hasBillCount});
     setSyncStatus('☁️ ซิงค์ยอดขายแล้ว '+new Date().toLocaleTimeString('th-TH'));
   }catch(err){ setSyncStatus('⚠️ ซิงค์ยอดขายไม่สำเร็จ: '+err.message); }
 }
@@ -790,6 +797,7 @@ async function pullAllFromCloud(){
     if(salesRes && salesRes.rows.length){
       S.rows=salesRes.rows.map(decodeSalesRow);
       if(salesRes.meta.netLabel) S.netLabel=salesRes.meta.netLabel;
+      S.hasBillCount=!!salesRes.meta.hasBillCount;
       S.refDate=null;
       FILTER_DEFS.forEach(f=>S.filters[f.key]=new Set());
     }
@@ -873,10 +881,12 @@ function ranges(){
   const s=new Date(y,0,1); return {cur:[s,ref], ly:[shiftYear(s,-1),shiftYear(ref,-1)], lm:null};
 }
 function inRange(r,a,b){ return r.k>=dayKey(a)&&r.k<=dayKey(b); }
+// #bills from the retailer's Bill Count column (summed) when the file has it, else distinct receipts
+function billsOf(o){ return S.hasBillCount ? (o.billSum||0) : (o.bills?o.bills.size:0); }
 function agg(rows){
-  const o={net:0,qty:0,cogs:0,gp:0,bills:new Set()};
-  for(const r of rows){ o.net+=r.net; o.qty+=r.qty; o.cogs+=r.cogs; o.gp+=r.gp; if(r.rc) o.bills.add(r.rc); }
-  o.nbills=o.bills.size; o.asp=o.qty?o.net/o.qty:0; o.gppct=o.net?o.gp/o.net*100:0; o.avgbill=o.nbills?o.net/o.nbills:0;
+  const o={net:0,qty:0,cogs:0,gp:0,billSum:0,bills:new Set()};
+  for(const r of rows){ o.net+=r.net; o.qty+=r.qty; o.cogs+=r.cogs; o.gp+=r.gp; o.billSum+=r.bc||0; if(r.rc) o.bills.add(r.rc); }
+  o.nbills=billsOf(o); o.asp=o.qty?o.net/o.qty:0; o.gppct=o.net?o.gp/o.net*100:0; o.avgbill=o.nbills>0?o.net/o.nbills:0;
   return o;
 }
 function groupSum(rows,key){ const m={}; for(const r of rows){ m[r[key]]=(m[r[key]]||0)+r.net; } return m; }
@@ -1014,8 +1024,8 @@ function renderPromo(rowsCur, rowsLy){
   const cur={};
   for(const r of withPromo){
     const k=keyOf(r);
-    const o=cur[k] || (cur[k]={net:0,qty:0,disc:0,bills:new Set(),name:r.pn||r.pc});
-    o.net+=r.net; o.qty+=r.qty; o.disc+=r.da; if(r.rc) o.bills.add(r.rc);
+    const o=cur[k] || (cur[k]={net:0,qty:0,disc:0,billSum:0,bills:new Set(),name:r.pn||r.pc});
+    o.net+=r.net; o.qty+=r.qty; o.disc+=r.da; o.billSum+=r.bc||0; if(r.rc) o.bills.add(r.rc);
   }
   const lyNet={};
   for(const r of rowsLy){ if(!(r.pc||r.pn)) continue; const k=keyOf(r); lyNet[k]=(lyNet[k]||0)+r.net; }
@@ -1032,7 +1042,7 @@ function renderPromo(rowsCur, rowsLy){
 
   const top=Object.entries(cur).sort((a,b)=>b[1].net-a[1].net).slice(0,15);
   $('#promoTbl tbody').innerHTML=top.map(([k,o])=>{
-    const bills=o.bills.size;
+    const bills=billsOf(o);
     const discPct=(o.net+o.disc)?o.disc/(o.net+o.disc)*100:0;
     const share=promoNet?o.net/promoNet*100:0;
     const code=k.split('|')[0];
@@ -1044,7 +1054,7 @@ function renderPromo(rowsCur, rowsLy){
 }
 
 function kpiRow(o, daysElapsed, daysInMonth){
-  const bills=o.bills.size;
+  const bills=billsOf(o);
   const atv=bills?o.net/bills:0, upt=bills?o.qty/bills:0, asp=o.qty?o.net/o.qty:0;
   const perDay=daysElapsed?o.net/daysElapsed:0, forecast=perDay*daysInMonth;
   return {...o, bills, atv, upt, asp, perDay, forecast};
@@ -1092,20 +1102,20 @@ function renderStoreTable(){
   // per-store
   const byStore={};
   for(const r of rows){
-    const o=byStore[r.st] || (byStore[r.st]={net:0,qty:0,bills:new Set(),stn:r.stn,stp:r.stp});
-    o.net+=r.net; o.qty+=r.qty; if(r.rc) o.bills.add(r.rc);
+    const o=byStore[r.st] || (byStore[r.st]={net:0,qty:0,billSum:0,bills:new Set(),stn:r.stn,stp:r.stp});
+    o.net+=r.net; o.qty+=r.qty; o.billSum+=r.bc||0; if(r.rc) o.bills.add(r.rc);
   }
   const storeList=Object.entries(byStore).map(([code,o])=>({code, target:targetOf(code), ...kpiRow(o,daysElapsed,daysInMonth)}))
     .sort((a,b)=>b.net-a.net);
 
   // per-store-type + overall total — target rolled up from each store's own target
   const byType={};
-  const total={net:0,qty:0,bills:new Set(),storeSet:new Set()};
+  const total={net:0,qty:0,billSum:0,bills:new Set(),storeSet:new Set()};
   let totalTarget=0; const targetByType={};
   for(const r of rows){
-    const o=byType[r.stp] || (byType[r.stp]={net:0,qty:0,bills:new Set(),storeSet:new Set()});
-    o.net+=r.net; o.qty+=r.qty; if(r.rc) o.bills.add(r.rc); o.storeSet.add(r.st);
-    total.net+=r.net; total.qty+=r.qty; if(r.rc) total.bills.add(r.rc); total.storeSet.add(r.st);
+    const o=byType[r.stp] || (byType[r.stp]={net:0,qty:0,billSum:0,bills:new Set(),storeSet:new Set()});
+    o.net+=r.net; o.qty+=r.qty; o.billSum+=r.bc||0; if(r.rc) o.bills.add(r.rc); o.storeSet.add(r.st);
+    total.net+=r.net; total.qty+=r.qty; total.billSum+=r.bc||0; if(r.rc) total.bills.add(r.rc); total.storeSet.add(r.st);
   }
   storeList.forEach(s=>{ targetByType[s.stp]=(targetByType[s.stp]||0)+s.target; totalTarget+=s.target; });
   const typeList=Object.entries(byType).map(([tp,o])=>({tp, nstores:o.storeSet.size, ...kpiRow(o,daysElapsed,daysInMonth)}))
@@ -1479,6 +1489,7 @@ function handleFile(file){
       FILTER_DEFS.forEach(f=>S.filters[f.key]=new Set());
       const notes=[];
       if(rows.every(r=>r.gp===0)) notes.push('ไม่พบคอลัมน์กำไร (Margin_Value) — ตัวเลข GP จะเป็น 0');
+      if(!S.hasBillCount) notes.push('ไม่พบคอลัมน์ Bill Count — จำนวนบิลจะนับจากเลขที่ใบเสร็จ (Receipt_No) ที่ไม่ซ้ำแทน');
       if(rows._skippedStock) notes.push(`แถวสต็อก (Source = STOCK) ${rows._skippedStock.toLocaleString()} แถว — ในนั้นมีสินค้าติดแฟล็ก Aging ${S.agingRows.length.toLocaleString()} แถว ใช้ในหน้า 📦 สต็อก & Aging`);
       if(notes.length){ $('#warnbar').textContent='หมายเหตุ: '+notes.join(' • '); $('#warnbar').classList.remove('hide'); }
       else $('#warnbar').classList.add('hide');
