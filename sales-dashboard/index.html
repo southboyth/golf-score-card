@@ -258,32 +258,6 @@ tr.total-row td:first-child{color:var(--brand)}
 
     <div id="pageStock" class="hide">
 
-    <div class="panel" id="agingPanel">
-      <div class="chart-title" style="margin-bottom:2px">⏳ สต็อกค้างขาย (Aging / Dead Stock)</div>
-      <div class="chart-note" id="agingNote" style="margin-bottom:12px"></div>
-
-      <div id="agingEmpty">
-        <div class="empty" style="padding:20px 8px" id="agingEmptyMsg">—</div>
-      </div>
-
-      <div id="agingBody" class="hide">
-        <div class="kpis" id="agingKpis" style="margin-bottom:16px"></div>
-
-        <div class="subhead">รายสาขา — จำนวนชิ้นค้างนาน และมูลค่าต้นทุนแยกตามระดับ</div>
-        <div class="tbl-scroll" style="margin-bottom:12px">
-          <table id="agingTbl">
-            <thead><tr>
-              <th>สาขา</th>
-              <th>W · 120 วัน (฿)</th><th>N · 150 วัน (฿)</th><th>O · 180 วัน (฿)</th><th>&lt;O&gt; · 360 วัน (฿)</th>
-              <th>รวมค้างนาน N+O+&lt;O&gt; (฿)</th><th>ชิ้นค้างนาน</th>
-            </tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-        <div class="sale-day-note">Flag_O (คอลัมน์ AZ) อยู่บนแถว Source=STOCK (คอลัมน์ A) ในไฟล์ยอดขาย บอก Aging ของสินค้าที่ค้างขายในแต่ละสาขา (W=120, N=150, O=180, &lt;O&gt;=360 วันที่ขายไม่ได้) • จำนวนชิ้นดึงจาก Stock_Qty (คอลัมน์ Z) และมูลค่าต้นทุนจาก Cost_Amt_Stock (คอลัมน์ X) บนแถวเดียวกัน (ไม่ต้องใช้ไฟล์สต็อกแยก) • "รวมค้างนาน" = N + O + &lt;O&gt; (ค้างตั้งแต่ 150 วันขึ้นไป) เรียงจากมากไปน้อย • ขึ้นกับตัวกรองแบรนด์/หมวด/สาขาด้านบน ไม่ขึ้นกับแท็บ Daily/MTD/YTD</div>
-      </div>
-    </div>
-
     <div class="panel" id="stockPanel">
       <div class="chart-title" style="margin-bottom:2px">📦 Stock &amp; Sell-Through</div>
       <div class="chart-note" id="stockNote" style="margin-bottom:12px"></div>
@@ -330,7 +304,7 @@ tr.total-row td:first-child{color:var(--brand)}
             <tbody></tbody>
           </table>
         </div>
-        <div class="sale-day-note">Sell-Through % = ขาย 90 วันล่าสุด ÷ (ขาย 90 วันล่าสุด + สต็อกคงเหลือ) • Weeks of Cover = สต็อกคงเหลือ ÷ ยอดขายเฉลี่ย/สัปดาห์ (เฉลี่ย 8 สัปดาห์ล่าสุด) • คำนวณ ณ วันที่สแนปช็อตสต็อก ไม่ขึ้นกับแท็บ Daily/MTD/YTD แต่ขึ้นกับตัวกรองแบรนด์/หมวดสินค้าด้านบน</div>
+        <div class="sale-day-note">Sell-Through % = ขาย 90 วันล่าสุด ÷ (ขาย 90 วันล่าสุด + สต็อกคงเหลือ) • Weeks of Cover = สต็อกคงเหลือ ÷ ยอดขายเฉลี่ย/สัปดาห์ (เฉลี่ย 8 สัปดาห์ล่าสุด) • คำนวณ ณ วันที่สแนปช็อตสต็อก ไม่ขึ้นกับแท็บ Daily/MTD/YTD แต่ขึ้นกับตัวกรอง แบรนด์/หมวดสินค้า/สาขา/ประเภทร้าน ด้านบน (ตัวกรองช่องทาง Channel ไม่มีผลกับสต็อก เพราะสต็อกเป็นยอดคงคลังต่อสาขา ไม่ได้แยกตามช่องทางขาย)</div>
       </div>
     </div>
 
@@ -872,10 +846,15 @@ function filtered(){
 }
 function filteredStock(){
   const f=S.filters;
+  // stock rows carry no store-type, so map store code -> type from the sales rows when that filter
+  // is active (built only when needed). Channel/source doesn't apply to physical inventory.
+  let stpOf=null;
+  if(f.storeType.size){ stpOf={}; for(const r of S.rows){ if(!stpOf[r.st]) stpOf[r.st]=r.stp; } }
   return S.stockRows.filter(r=>
     (!f.brand.size||f.brand.has(r.br)) &&
     (!f.subclass.size||f.subclass.has(r.sc)) &&
-    (!f.store.size||f.store.has(r.st))
+    (!f.store.size||f.store.has(r.st)) &&
+    (!f.storeType.size||f.storeType.has(stpOf[r.st]))
   );
 }
 function filteredAging(){
@@ -1300,59 +1279,6 @@ function renderStock(){
     || '<tr><td colspan="10" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลสต็อกในตัวกรองที่เลือก</td></tr>';
 }
 
-function renderAging(){
-  // Flag_O lives on the Source=STOCK rows of the sales export, alongside that item's stock qty and
-  // Cost_Amt_Stock. So dead-stock cost is self-contained in the sales file — no match to the
-  // separate stock-card file needed. Aggregate flagged stock cost by store and aging bucket.
-  const canRun=S.agingRows.length>0;
-  $('#agingEmpty').classList.toggle('hide', canRun);
-  $('#agingBody').classList.toggle('hide', !canRun);
-  if(!canRun){
-    $('#agingNote').textContent='';
-    $('#agingEmptyMsg').textContent = S.rows.length
-      ? 'ไม่พบแถว Source=STOCK ที่มี Flag_O ในไฟล์ยอดขายที่อัปโหลด — Aging (W/N/O/<O>) อยู่บนแถวสต็อกในไฟล์ Raw_data กรุณาอัปโหลดไฟล์ยอดขายที่มีข้อมูลสต็อกด้วย'
-      : 'ยังไม่มีข้อมูล — กรุณาอัปโหลดไฟล์ยอดขาย (Raw_data) ที่มีแถว Source=STOCK และคอลัมน์ Flag_O';
-    return;
-  }
-
-  const rows=filteredAging();
-  const FLAGS=['W','N','O','<O>'];
-  const mkBucket=()=>({W:{cost:0,qty:0},N:{cost:0,qty:0},O:{cost:0,qty:0},'<O>':{cost:0,qty:0}});
-  const storeNameMap={}; S.agingRows.forEach(r=>{ if(!storeNameMap[r.st]||storeNameMap[r.st]==='—') storeNameMap[r.st]=r.stn; });
-  const byStore={}; const tot=mkBucket();
-  for(const r of rows){
-    const f=r.flag; if(!tot[f]) continue;
-    const o=byStore[r.st] || (byStore[r.st]=mkBucket());
-    o[f].cost+=r.scost; o[f].qty+=r.sqty;
-    tot[f].cost+=r.scost; tot[f].qty+=r.sqty;
-  }
-  const deadCost=b=>b.N.cost+b.O.cost+b['<O>'].cost;
-  const deadQty=b=>b.N.qty+b.O.qty+b['<O>'].qty;
-  const stores=Object.entries(byStore).map(([code,b])=>({code,name:storeNameMap[code]||code,b,dead:deadCost(b)}))
-    .sort((a,b)=>b.dead-a.dead || b.b.W.cost-a.b.W.cost);
-  const storesWithNO=stores.filter(s=>s.dead>0).length;
-
-  const totalDead=deadCost(tot), totalDeadQty=deadQty(tot);
-  const totalUnits=FLAGS.reduce((a,f)=>a+tot[f].qty,0);
-  $('#agingNote').textContent=`${rows.length.toLocaleString()} แถวสต็อกติดแฟล็ก Aging • รวม ${nf0.format(totalUnits)} ชิ้น • ${stores.length} สาขามีสินค้าค้างขาย (${storesWithNO} สาขามีของค้าง 150 วันขึ้นไป) • นับชิ้นจาก Stock_Qty (col Z) มูลค่าจาก Cost_Amt_Stock (col X) บนแถว Source=STOCK`;
-
-  $('#agingKpis').innerHTML=[
-    {k:'สต็อกค้างขาย N+O+&lt;O&gt; (150 วัน+)', v:baht(totalDead), sub:`${nf0.format(totalDeadQty)} ชิ้น • ${storesWithNO} สาขา`},
-    {k:'W · ค้าง 120 วัน', v:baht(tot.W.cost), sub:`${nf0.format(tot.W.qty)} ชิ้น`},
-    {k:'N · ค้าง 150 วัน', v:baht(tot.N.cost), sub:`${nf0.format(tot.N.qty)} ชิ้น`},
-    {k:'O + &lt;O&gt; · ค้าง 180 วัน+', v:baht(tot.O.cost+tot['<O>'].cost), sub:`${nf0.format(tot.O.qty+tot['<O>'].qty)} ชิ้น`}
-  ].map(c=>`<div class="kpi"><div class="k">${c.k}</div><div class="v">${c.v}</div><div class="sub">${c.sub}</div></div>`).join('');
-
-  const cell=v=> v>0?baht(v):'—';
-  const rowHTML=(label,s,cls)=>`<tr${cls?` class="${cls}"`:''}><td>${label}</td>
-    <td>${cell(s.b.W.cost)}</td><td>${cell(s.b.N.cost)}</td><td>${cell(s.b.O.cost)}</td><td>${cell(s.b['<O>'].cost)}</td>
-    <td>${baht(s.dead)}</td><td>${nf0.format(deadQty(s.b))}</td></tr>`;
-  $('#agingTbl tbody').innerHTML = stores.length ?
-    rowHTML('รวมทั้งหมด (Total)', {b:tot,dead:totalDead}, 'total-row')
-    + stores.map(s=>rowHTML(s.code===s.name?esc(s.code):`${esc(s.code)} — ${esc(s.name)}`, s)).join('')
-    : '<tr><td colspan="7" style="text-align:center;color:var(--muted)">ไม่มีสินค้าติดแฟล็ก Flag_O ในตัวกรองที่เลือก</td></tr>';
-}
-
 function renderAll(){
   const f=filtered(); const R=ranges();
   const rc=f.filter(r=>inRange(r,R.cur[0],R.cur[1]));
@@ -1364,7 +1290,6 @@ function renderAll(){
   renderTrend(rc); renderChannel(rc); renderCat(rc); renderTable(rc,rl); renderPromo(rc,rl);
   renderStoreTable();
   renderStock();
-  renderAging();
   reapplySorts();
   $('#foot').textContent=`ช่วงข้อมูลที่แสดง: ${iso(R.cur[0])} → ${iso(R.cur[1])} • เทียบปีก่อน ${iso(R.ly[0])} → ${iso(R.ly[1])}`
     + (R.lm?` • เทียบเดือนก่อน ${iso(R.lm[0])} → ${iso(R.lm[1])}`:'')
