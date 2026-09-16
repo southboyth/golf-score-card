@@ -915,10 +915,16 @@ function renderKPIs(cur,ly,lm){
     const extra=d.extra?`<div>${d.extra}</div>`:'';
     return `<div class="kpi"><div class="k">${d.k}</div><div class="v">${v}</div><div class="sub">${extra}${yoyLine}${momLine}</div></div>`;
   });
-  // Sale/Day (view-scoped): net over the selected range ÷ number of days that had sales
-  const perDayView = cur._days ? cur.net/cur._days : 0;
-  cards.push(`<div class="kpi"><div class="k">ยอดขาย/วัน (Sale/Day)</div><div class="v">${baht(perDayView)}</div>
-    <div class="sub"><div>${nf0.format(cur._days||0)} วันมียอดขาย</div></div></div>`);
+  // Sale-rate card: in YTD (which spans many months) show Sale/Month; otherwise Sale/Day
+  if(S.view==='ytd'){
+    const perMonth = cur._months ? cur.net/cur._months : 0;
+    cards.push(`<div class="kpi"><div class="k">ยอดขาย/เดือน (Sale/Month)</div><div class="v">${baht(perMonth)}</div>
+      <div class="sub"><div>${nf0.format(cur._months||0)} เดือนมียอดขาย</div></div></div>`);
+  }else{
+    const perDayView = cur._days ? cur.net/cur._days : 0;
+    cards.push(`<div class="kpi"><div class="k">ยอดขาย/วัน (Sale/Day)</div><div class="v">${baht(perDayView)}</div>
+      <div class="sub"><div>${nf0.format(cur._days||0)} วันมียอดขาย</div></div></div>`);
+  }
 
   // Forecast to end of month: current month's run-rate projected to the full month, always based on
   // refDate's month (MTD ÷ days elapsed × days in month) regardless of the Daily/MTD/YTD toggle
@@ -1286,6 +1292,7 @@ function renderAll(){
   const rm=R.lm ? f.filter(r=>inRange(r,R.lm[0],R.lm[1])) : null;
   const cur=agg(rc), ly=agg(rl), lm=rm?agg(rm):null;
   cur._days=new Set(rc.map(r=>r.k)).size;
+  cur._months=new Set(rc.map(r=>r.y*100+r.m)).size;
   renderKPIs(cur,ly,lm);
   renderTrend(rc); renderChannel(rc); renderCat(rc); renderTable(rc,rl); renderPromo(rc,rl);
   renderStoreTable();
