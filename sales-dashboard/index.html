@@ -238,7 +238,7 @@ tr.total-row td:first-child{color:var(--brand)}
         <table id="storeTypeTbl">
           <thead><tr>
             <th>ประเภทร้าน</th><th>จำนวนสาขา</th><th>ยอดขาย ฿</th><th>ชิ้น</th><th>บิล</th>
-            <th>ATV</th><th>UPT</th><th>ASP</th><th>ยอด/วัน</th><th>พยากรณ์สิ้นเดือน</th><th>MoM</th><th>YoY</th><th>เป้าหมาย (เดือนนี้)</th><th>% เป้าหมาย</th>
+            <th>ATV</th><th>UPT</th><th>ASP</th><th class="rateCol">ยอด/วัน</th><th>พยากรณ์สิ้นเดือน</th><th>MoM</th><th>YoY</th><th>เป้าหมาย (เดือนนี้)</th><th>% เป้าหมาย</th>
           </tr></thead>
           <tbody></tbody>
         </table>
@@ -249,12 +249,12 @@ tr.total-row td:first-child{color:var(--brand)}
         <table id="storeTbl">
           <thead><tr>
             <th>สาขา</th><th>ประเภท</th><th>ยอดขาย ฿</th><th>ชิ้น</th><th>บิล</th>
-            <th>ATV</th><th>UPT</th><th>ASP</th><th>ยอด/วัน</th><th>พยากรณ์สิ้นเดือน</th><th>MoM</th><th>YoY</th><th>เป้าหมาย (เดือนนี้)</th><th>% เป้าหมาย</th>
+            <th>ATV</th><th>UPT</th><th>ASP</th><th class="rateCol">ยอด/วัน</th><th>พยากรณ์สิ้นเดือน</th><th>MoM</th><th>YoY</th><th>เป้าหมาย (เดือนนี้)</th><th>% เป้าหมาย</th>
           </tr></thead>
           <tbody></tbody>
         </table>
       </div>
-      <div class="sale-day-note">ตารางนี้เปลี่ยนตามแท็บ Daily/MTD/YTD ด้านบน • ATV = ยอดขาย/บิล • UPT = ชิ้น/บิล • ASP = ยอดขาย/ชิ้น • ยอด/วัน = ยอดขายในช่วง ÷ จำนวนวันในช่วง • MoM/YoY เทียบช่วงเดียวกันของเดือน/ปีก่อน (MoM ไม่แสดงในแท็บ YTD) • พยากรณ์สิ้นเดือน และ เป้าหมาย/%เป้าหมาย เป็นค่ารายเดือน จะแสดงเฉพาะแท็บ MTD (แท็บอื่นขึ้น "—") • ยังไม่ได้อัปโหลดไฟล์เป้าหมายจะแสดง "—"</div>
+      <div class="sale-day-note">ตารางนี้เปลี่ยนตามแท็บ Daily/MTD/YTD ด้านบน • ATV = ยอดขาย/บิล • UPT = ชิ้น/บิล • ASP = ยอดขาย/ชิ้น • ยอด/วัน = ยอดขายในช่วง ÷ จำนวนวันในช่วง (แท็บ YTD จะเป็น ยอด/เดือน = ÷ จำนวนเดือนที่ผ่านมา) • MoM/YoY เทียบช่วงเดียวกันของเดือน/ปีก่อน (MoM ไม่แสดงในแท็บ YTD) • พยากรณ์สิ้นเดือน และ เป้าหมาย/%เป้าหมาย เป็นค่ารายเดือน จะแสดงเฉพาะแท็บ MTD (แท็บอื่นขึ้น "—") • ยังไม่ได้อัปโหลดไฟล์เป้าหมายจะแสดง "—"</div>
     </div>
 
     </div><!-- /#pageSales -->
@@ -1131,9 +1131,13 @@ function renderStoreTable(){
   // the Daily and YTD views; MoM/YoY reuse the view's own comparison ranges (with the same day cutoff).
   const ref=S.refDate, y=ref.getFullYear(), mo=ref.getMonth();
   const R=ranges();
-  const isMTD=S.view==='mtd';
+  const isMTD=S.view==='mtd', isYTD=S.view==='ytd';
   const daysInMonth=isMTD?new Date(y,mo+1,0).getDate():null; // passed to kpiRow only for MTD -> forecast
-  const rangeDays=Math.round((R.cur[1]-R.cur[0])/86400000)+1; // calendar days in the selected range
+  // the "rate" column is per-day normally, but per-month in YTD (÷ months elapsed Jan..refMonth)
+  const rangeDays=Math.round((R.cur[1]-R.cur[0])/86400000)+1;
+  const rateDiv=isYTD?(mo+1):rangeDays;
+  // relabel the rate column header to match
+  document.querySelectorAll('.rateCol').forEach(th=>th.textContent=isYTD?'ยอด/เดือน':'ยอด/วัน');
   const flt=filtered();
   const rows=flt.filter(r=>inRange(r,R.cur[0],R.cur[1]));
 
@@ -1163,7 +1167,7 @@ function renderStoreTable(){
     const o=byStore[r.st] || (byStore[r.st]={net:0,qty:0,billSum:0,bills:new Set(),stn:r.stn,stp:r.stp});
     o.net+=r.net; o.qty+=r.qty; o.billSum+=r.bc||0; if(r.rc) o.bills.add(r.rc);
   }
-  const storeList=Object.entries(byStore).map(([code,o])=>({code, target:targetOf(code), ...kpiRow(o,rangeDays,daysInMonth)}))
+  const storeList=Object.entries(byStore).map(([code,o])=>({code, target:targetOf(code), ...kpiRow(o,rateDiv,daysInMonth)}))
     .sort((a,b)=>b.net-a.net);
 
   // per-store-type + overall total — target rolled up from each store's own target
@@ -1176,9 +1180,9 @@ function renderStoreTable(){
     total.net+=r.net; total.qty+=r.qty; total.billSum+=r.bc||0; if(r.rc) total.bills.add(r.rc); total.storeSet.add(r.st);
   }
   storeList.forEach(s=>{ targetByType[s.stp]=(targetByType[s.stp]||0)+s.target; totalTarget+=s.target; });
-  const typeList=Object.entries(byType).map(([tp,o])=>({tp, nstores:o.storeSet.size, ...kpiRow(o,rangeDays,daysInMonth)}))
+  const typeList=Object.entries(byType).map(([tp,o])=>({tp, nstores:o.storeSet.size, ...kpiRow(o,rateDiv,daysInMonth)}))
     .sort((a,b)=>b.net-a.net);
-  const totalRow=kpiRow(total,rangeDays,daysInMonth);
+  const totalRow=kpiRow(total,rateDiv,daysInMonth);
 
   const viewLabel=S.view==='daily'?'รายวัน (Daily)':isMTD?'เดือนนี้ (MTD)':S.view==='custom'?'ช่วงเอง (Custom)':'ปีนี้ (YTD)';
   $('#storeNote').textContent=`ช่วง ${viewLabel}: ${iso(R.cur[0])} → ${iso(R.cur[1])} • ${storeList.length} สาขาที่มียอดขาย • ${hasLm?'MoM/YoY':'YoY'} เทียบช่วงเดียวกันของเดือน/ปีก่อน`
