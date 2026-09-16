@@ -190,13 +190,13 @@ tr.total-row td:first-child{color:var(--brand)}
 
     <div class="grid2">
       <div class="panel">
-        <div class="chart-title">สัดส่วนตามช่องทาง</div>
-        <div class="chart-note">Netsale (Excl VAT) ในช่วงที่เลือก</div>
+        <div class="chart-title" id="channelTitle">สัดส่วนตามหมวดสินค้า (Subclass)</div>
+        <div class="chart-note" id="channelNote">Product Subclass — Netsale (Excl VAT)</div>
         <div class="canh sm"><canvas id="channelChart"></canvas></div>
       </div>
       <div class="panel">
-        <div class="chart-title" id="catTitle">ยอดขายตามหมวดสินค้า (Subclass)</div>
-        <div class="chart-note" id="catNote">Product Subclass — Netsale (Excl VAT)</div>
+        <div class="chart-title" id="catTitle">ยอดขายราย Store Type</div>
+        <div class="chart-note" id="catNote">ประเภทร้าน — Netsale (Excl VAT)</div>
         <div class="canh sm"><canvas id="catChart"></canvas></div>
       </div>
     </div>
@@ -1031,21 +1031,28 @@ function renderTrend(rowsCur){
     ]},options:baseOpts()});
   }
 }
+// product breakdown dimension follows the brand filter: GOODR (only) -> ModelName, otherwise Subclass
+function brandProductDim(){
+  const bf=S.filters.brand;
+  const useModel = bf.has('GOODR') && !bf.has('NATGEO');
+  return useModel ? {key:'md', en:'ModelName', th:'รุ่น (ModelName)'} : {key:'sc', en:'Product Subclass', th:'หมวดสินค้า (Subclass)'};
+}
+// doughnut: product mix (brand-aware Subclass/ModelName)
 function renderChannel(rowsCur){
-  const g=groupSum(rowsCur,'src'); const e=topN(g,8);
+  const dim=brandProductDim();
+  $('#channelTitle').textContent='สัดส่วนตาม'+dim.th;
+  $('#channelNote').textContent=dim.en+' — '+S.netLabel+' (Top 8)';
+  const g=groupSum(rowsCur,dim.key); const e=topN(g,8);
   const opt=baseOpts(); opt.scales={}; opt.plugins.legend.position='right';
   opt.plugins.tooltip.callbacks.label=c=>` ${c.label}: ${compact(c.parsed)}`;
   mkChart('channelChart',{type:'doughnut',data:{labels:e.map(x=>x[0]),
     datasets:[{data:e.map(x=>x[1]),backgroundColor:CATCOLORS,borderWidth:0}]},options:opt});
 }
+// horizontal bar: sales by Store Type
 function renderCat(rowsCur){
-  // dimension follows the brand filter: GOODR (only) breaks down by ModelName, otherwise by Subclass
-  const bf=S.filters.brand;
-  const useModel = bf.has('GOODR') && !bf.has('NATGEO');
-  const key = useModel ? 'md' : 'sc';
-  $('#catTitle').textContent = useModel ? 'ยอดขายตามรุ่น (ModelName)' : 'ยอดขายตามหมวดสินค้า (Subclass)';
-  $('#catNote').textContent = (useModel ? 'ModelName' : 'Product Subclass') + ' — ' + S.netLabel;
-  const g=groupSum(rowsCur,key); const e=topN(g,8);
+  $('#catTitle').textContent='ยอดขายราย Store Type';
+  $('#catNote').textContent='ประเภทร้าน — '+S.netLabel;
+  const g=groupSum(rowsCur,'stp'); const e=topN(g,8);
   const opt=baseOpts(); opt.indexAxis='y'; opt.plugins.legend.display=false;
   // build fresh scale configs rather than mutating baseOpts()'s: its y-scale ticks.callback is a
   // number formatter meant for a value axis, but on this horizontal chart y is the category axis —
