@@ -15,7 +15,7 @@ Snapshot สมบูรณ์ที่รันได้ของแต่ล�
 ## v1.2.0
 
 - **Date:** 2026-09-16
-- **Status:** 🧪 TESTING (รอผู้ใช้ทดสอบและ Approve)
+- **Status:** ✅ STABLE (ผู้ใช้ยืนยัน "ใช้งานได้" 2026-09-16)
 - **Snapshot:** `versions/v1.2.0/`
 - **Rollback:** v1.1.0 (`versions/v1.1.0/` หรือ commit `a5101fa`)
 - **Files:** index.html, sw.js (cache `sales-dash-v12`), manifest.json
@@ -62,7 +62,7 @@ Snapshot สมบูรณ์ที่รันได้ของแต่ล�
 ## v1.1.0
 
 - **Date:** 2026-09-16
-- **Status:** ✅ STABLE (ผู้ใช้ยืนยัน "ใช้งานได้" 2026-09-16)
+- **Status:** 🗄️ DEPRECATED (ถูกแทนที่ด้วย v1.2.0 — ยังเก็บไว้สำหรับ rollback)
 - **Snapshot:** `versions/v1.1.0/`
 - **Rollback:** v1.0.0 (`versions/v1.0.0/` หรือ commit `4bed724`)
 - **Files:** index.html, sw.js (cache `sales-dash-v11`), manifest.json
