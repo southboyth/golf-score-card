@@ -40,8 +40,8 @@ body{padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom);min-heigh
 .btn.primary{background:var(--brand);color:#fff;border-color:transparent}
 .btn:active{transform:scale(.98)}
 .panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:12px;box-shadow:var(--shadow)}
-.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;background:var(--chip);padding:4px;border-radius:12px;max-width:420px}
-.seg button{border:0;background:transparent;border-radius:9px;padding:11px 4px;font-weight:800;color:var(--muted);cursor:pointer;font-size:14px}
+.seg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;background:var(--chip);padding:4px;border-radius:12px;max-width:560px}
+.seg button{border:0;background:transparent;border-radius:9px;padding:11px 4px;font-weight:800;color:var(--muted);cursor:pointer;font-size:13px}
 .seg button.active{background:var(--card);color:var(--brand);box-shadow:0 1px 6px #0002}
 .pagenav{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
 .pagenav button{flex:1;min-width:150px;border:1px solid var(--line);background:var(--card);color:var(--muted);
@@ -169,11 +169,13 @@ tr.total-row td:first-child{color:var(--brand)}
         <button data-v="daily">รายวัน (Daily)</button>
         <button data-v="mtd">เดือนนี้ (MTD)</button>
         <button data-v="ytd" class="active">ปีนี้ (YTD)</button>
+        <button data-v="custom">ช่วงเอง (Custom)</button>
       </div>
       <div class="filters" id="filters">
-        <div class="fld"><label>ณ วันที่ (as of)</label><input type="date" id="refDate"></div>
+        <div class="fld" id="refDateFld"><label>ณ วันที่ (as of)</label><input type="date" id="refDate"></div>
+        <div class="fld hide" id="rangeFromFld"><label>จากวันที่</label><input type="date" id="rangeFrom"></div>
+        <div class="fld hide" id="rangeToFld"><label>ถึงวันที่</label><input type="date" id="rangeTo"></div>
       </div>
-      <div class="sale-day-note" style="margin-top:10px">ตัวกรอง ปี/เดือน/วันที่ เป็นตัวกรองเสริม (เลือกได้หลายค่า) กรองข้อมูลเพิ่มบนช่วงของแท็บ Daily/MTD/YTD + "ณ วันที่" — เช่น YTD + เลือกเดือน ม.ค.–มี.ค. = ดูเฉพาะ Q1 • หมายเหตุ: ถ้าเลือก "ปี" ที่ไม่ตรงกับช่วงของ "ณ วันที่" ตัวเลขอาจเป็น 0 เพราะสองช่วงไม่ทับกัน</div>
     </div>
 
     <div id="pageSales">
@@ -398,21 +400,16 @@ function normAgingFlag(v){
 }
 
 /* ---------- multi-select filter definitions ---------- */
-// get(r) extracts the value a filter matches on; numeric flags date-part filters that sort as numbers.
-// year/month/day are additive date-part filters that further narrow the sales views on top of the
-// as-of-date + Daily/MTD/YTD range (they do not apply to the stock snapshot).
+// get(r) extracts the value a filter matches on
 const FILTER_DEFS = [
   {key:'brand',     label:'แบรนด์',                 get:r=>r.br},
   {key:'source',    label:'ช่องทาง',                get:r=>r.src},
   {key:'storeType', label:'ประเภทร้าน',             get:r=>r.stp},
   {key:'subclass',  label:'หมวดสินค้า (Subclass)',  get:r=>r.sc},
-  {key:'store',     label:'สาขา',                   get:r=>r.st},
-  {key:'year',      label:'ปี',                     get:r=>r.y,          numeric:true},
-  {key:'month',     label:'เดือน',                  get:r=>r.m,          numeric:true},
-  {key:'day',       label:'วันที่',                 get:r=>r.d.getDate(), numeric:true}
+  {key:'store',     label:'สาขา',                   get:r=>r.st}
 ];
 
-const S = { rows:[], refDate:null, view:'ytd', page:'sales', filters:{}, charts:{}, netLabel:'Netsale (Excl VAT)', stockRows:[], stockAsOf:null, targets:{}, agingRows:[], sort:{}, hasBillCount:false };
+const S = { rows:[], refDate:null, rangeFrom:null, rangeTo:null, view:'ytd', page:'sales', filters:{}, charts:{}, netLabel:'Netsale (Excl VAT)', stockRows:[], stockAsOf:null, targets:{}, agingRows:[], sort:{}, hasBillCount:false };
 let cloudUser=null;
 FILTER_DEFS.forEach(f=>S.filters[f.key]=new Set());
 const $ = s => document.querySelector(s);
@@ -687,6 +684,9 @@ function save(){
     const payload=JSON.stringify({
       rows:S.rows.map(encodeSalesRow),
       ref:iso(S.refDate),
+      view:S.view,
+      rangeFrom:S.rangeFrom?iso(S.rangeFrom):null,
+      rangeTo:S.rangeTo?iso(S.rangeTo):null,
       page:S.page,
       sort:S.sort,
       filters:Object.fromEntries(FILTER_DEFS.map(f=>[f.key,[...S.filters[f.key]]])),
@@ -710,6 +710,9 @@ function load(){
     const o=JSON.parse(raw);
     S.rows=o.rows.map(decodeSalesRow);
     S.refDate=parseDate(o.ref);
+    if(o.view) S.view=o.view;
+    if(o.rangeFrom) S.rangeFrom=parseDate(o.rangeFrom);
+    if(o.rangeTo) S.rangeTo=parseDate(o.rangeTo);
     if(o.page) S.page=o.page;
     if(o.sort) S.sort=o.sort;
     if(o.netLabel) S.netLabel=o.netLabel;
@@ -877,6 +880,12 @@ function ranges(){
   // lm (last month) is meaningful only for Daily/MTD — a "last month" cut for YTD has no
   // standard definition, so it's omitted (null) there and the KPI cards fall back to YoY only.
   const ref=S.refDate, y=ref.getFullYear();
+  if(S.view==='custom'){
+    // free from–to range; comparisons shift the whole span by a year (MoM) and a month
+    let a=S.rangeFrom||ref, b=S.rangeTo||ref;
+    if(a>b){ const t=a; a=b; b=t; }
+    return {cur:[a,b], ly:[shiftYear(a,-1),shiftYear(b,-1)], lm:[addMonthsClamp(a,-1),addMonthsClamp(b,-1)]};
+  }
   if(S.view==='daily'){
     const lmRef=addMonthsClamp(ref,-1);
     return {cur:[ref,ref], ly:[shiftYear(ref,-1),shiftYear(ref,-1)], lm:[lmRef,lmRef]};
@@ -953,7 +962,25 @@ const baseOpts = () => ({responsive:true,maintainAspectRatio:false,
 
 function renderTrend(rowsCur){
   const ref=S.refDate;
-  if(S.view==='daily'){
+  if(S.view==='custom'){
+    // daily bars across the chosen from–to span (capped to a sane number of bars)
+    let a=S.rangeFrom||ref, b=S.rangeTo||ref; if(a>b){const t=a;a=b;b=t;}
+    const spanDays=Math.round((b-a)/86400000)+1;
+    const bucket={};
+    for(const r of filtered()){ if(inRange(r,a,b)) bucket[r.k]=(bucket[r.k]||0)+r.net; }
+    const labels=[],ty=[];
+    if(spanDays<=92){
+      for(let i=0;i<spanDays;i++){ const d=new Date(a); d.setDate(a.getDate()+i);
+        labels.push(d.getDate()+'/'+(d.getMonth()+1)); ty.push(bucket[dayKey(d)]||0); }
+    }else{
+      // long span -> bucket by month to keep the chart readable
+      const mb={}; for(const k in bucket){ const s=String(k); const ym=s.slice(0,4)+'-'+s.slice(4,6); mb[ym]=(mb[ym]||0)+bucket[k]; }
+      Object.keys(mb).sort().forEach(ym=>{ labels.push(ym); ty.push(mb[ym]); });
+    }
+    $('#trendTitle').textContent='ยอดขายช่วงที่เลือก';
+    $('#trendNote').textContent=iso(a)+' → '+iso(b)+' • '+S.netLabel+(spanDays>92?' • รวมรายเดือน':' • รายวัน');
+    mkChart('trendChart',{type:'bar',data:{labels,datasets:[{label:'ยอดขาย',data:ty,backgroundColor:CATCOLORS[0],borderRadius:4}]},options:baseOpts()});
+  } else if(S.view==='daily'){
     // last 30 days ending refDate
     const labels=[],ty=[];
     const start=new Date(ref); start.setDate(ref.getDate()-29);
@@ -1153,7 +1180,7 @@ function renderStoreTable(){
     .sort((a,b)=>b.net-a.net);
   const totalRow=kpiRow(total,rangeDays,daysInMonth);
 
-  const viewLabel=S.view==='daily'?'รายวัน (Daily)':isMTD?'เดือนนี้ (MTD)':'ปีนี้ (YTD)';
+  const viewLabel=S.view==='daily'?'รายวัน (Daily)':isMTD?'เดือนนี้ (MTD)':S.view==='custom'?'ช่วงเอง (Custom)':'ปีนี้ (YTD)';
   $('#storeNote').textContent=`ช่วง ${viewLabel}: ${iso(R.cur[0])} → ${iso(R.cur[1])} • ${storeList.length} สาขาที่มียอดขาย • ${hasLm?'MoM/YoY':'YoY'} เทียบช่วงเดียวกันของเดือน/ปีก่อน`
     + (isMTD ? (totalTarget?` • เป้าหมายเดือนนี้ ${baht(totalTarget)}`:' • ยังไม่ได้อัปโหลดไฟล์เป้าหมายของเดือนนี้')
              : ' • พยากรณ์สิ้นเดือน/เป้าหมาย แสดงเฉพาะแท็บ MTD');
@@ -1430,11 +1457,7 @@ function buildFilters(){
     const sel=S.filters[def.key];
     list.innerHTML = vals.map(v=>{
       const sv=String(v);
-      const label = def.key==='store' ? `${v} — ${storeNameMap[v]||''}`
-        : def.key==='month' ? (TH_MONTHS[v-1]||sv)
-        : def.key==='day' ? 'วันที่ '+sv
-        : def.key==='year' ? 'ปี '+sv
-        : sv;
+      const label = def.key==='store' ? `${v} — ${storeNameMap[v]||''}` : sv;
       const checked = sel.has(sv) ? 'checked' : '';
       return `<label class="msel-item"><input type="checkbox" data-key="${def.key}" value="${esc(sv)}" ${checked}><span>${esc(label)}</span></label>`;
     }).join('') || '<div class="msel-empty">ไม่มีข้อมูล</div>';
@@ -1462,9 +1485,23 @@ function showDash(){
   $('#uploadTargetBtn').classList.remove('hide');
   const min=S.rows.reduce((a,r)=>r.k<a.k?r:a), max=S.rows.reduce((a,r)=>r.k>a.k?r:a);
   if(!S.refDate) S.refDate=max.d;
-  $('#refDate').min=iso(min.d); $('#refDate').max=iso(max.d); $('#refDate').value=iso(S.refDate);
+  // default custom range: last 7 days ending at the latest data date
+  if(!S.rangeTo) S.rangeTo=max.d;
+  if(!S.rangeFrom){ const a=new Date(max.d); a.setDate(a.getDate()-6); S.rangeFrom=a<min.d?min.d:a; }
+  const lo=iso(min.d), hi=iso(max.d);
+  $('#refDate').min=lo; $('#refDate').max=hi; $('#refDate').value=iso(S.refDate);
+  $('#rangeFrom').min=lo; $('#rangeFrom').max=hi; $('#rangeFrom').value=iso(S.rangeFrom);
+  $('#rangeTo').min=lo; $('#rangeTo').max=hi; $('#rangeTo').value=iso(S.rangeTo);
   $('#asof').textContent='ข้อมูล '+iso(min.d)+' → '+iso(max.d)+' • ณ วันที่ '+iso(S.refDate);
-  buildFilters(); applyPage(); renderAll();
+  applyDateInputs(); buildFilters(); applyPage(); renderAll();
+}
+// show the as-of date in Daily/MTD/YTD, or the from–to range inputs in Custom; sync the active tab
+function applyDateInputs(){
+  const custom=S.view==='custom';
+  $('#refDateFld').classList.toggle('hide', custom);
+  $('#rangeFromFld').classList.toggle('hide', !custom);
+  $('#rangeToFld').classList.toggle('hide', !custom);
+  [...$('#seg').children].forEach(x=>x.classList.toggle('active', x.dataset.v===S.view));
 }
 function handleFile(file){
   const rd=new FileReader();
@@ -1539,7 +1576,7 @@ drop.addEventListener('drop',e=>{ if(e.dataTransfer.files[0]) handleFile(e.dataT
 
 $('#seg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b)return;
   [...$('#seg').children].forEach(x=>x.classList.remove('active')); b.classList.add('active');
-  S.view=b.dataset.v; renderAll(); });
+  S.view=b.dataset.v; applyDateInputs(); renderAll(); save(); });
 $('#pagenav').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b)return;
   S.page=b.dataset.page; applyPage();
   // Chart.js sizes to its container; charts drawn while their page was hidden come out 0px,
@@ -1548,6 +1585,8 @@ $('#pagenav').addEventListener('click',e=>{ const b=e.target.closest('button'); 
   window.scrollTo({top:0,behavior:'smooth'});
 });
 $('#refDate').onchange=e=>{ S.refDate=parseDate(e.target.value)||S.refDate; $('#asof').textContent=$('#asof').textContent.replace(/ณ วันที่ .*/,'ณ วันที่ '+iso(S.refDate)); renderAll(); save(); };
+$('#rangeFrom').onchange=e=>{ S.rangeFrom=parseDate(e.target.value)||S.rangeFrom; renderAll(); save(); };
+$('#rangeTo').onchange=e=>{ S.rangeTo=parseDate(e.target.value)||S.rangeTo; renderAll(); save(); };
 $('#clearBtn').onclick=()=>{ if(confirm('ล้างข้อมูลทั้งหมด?')){ localStorage.removeItem(LSKEY); location.reload(); } };
 $('#exportBtn').onclick=()=>{
   html2canvas($('#dash'),{backgroundColor:getComputedStyle(document.body).backgroundColor,scale:2}).then(cv=>{
