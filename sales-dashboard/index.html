@@ -173,6 +173,7 @@ tr.total-row td:first-child{color:var(--brand)}
       <div class="filters" id="filters">
         <div class="fld"><label>ณ วันที่ (as of)</label><input type="date" id="refDate"></div>
       </div>
+      <div class="sale-day-note" style="margin-top:10px">ตัวกรอง ปี/เดือน/วันที่ เป็นตัวกรองเสริม (เลือกได้หลายค่า) กรองข้อมูลเพิ่มบนช่วงของแท็บ Daily/MTD/YTD + "ณ วันที่" — เช่น YTD + เลือกเดือน ม.ค.–มี.ค. = ดูเฉพาะ Q1 • หมายเหตุ: ถ้าเลือก "ปี" ที่ไม่ตรงกับช่วงของ "ณ วันที่" ตัวเลขอาจเป็น 0 เพราะสองช่วงไม่ทับกัน</div>
     </div>
 
     <div id="pageSales">
@@ -397,12 +398,18 @@ function normAgingFlag(v){
 }
 
 /* ---------- multi-select filter definitions ---------- */
+// get(r) extracts the value a filter matches on; numeric flags date-part filters that sort as numbers.
+// year/month/day are additive date-part filters that further narrow the sales views on top of the
+// as-of-date + Daily/MTD/YTD range (they do not apply to the stock snapshot).
 const FILTER_DEFS = [
-  {key:'brand',     field:'br',  label:'แบรนด์'},
-  {key:'source',    field:'src', label:'ช่องทาง'},
-  {key:'storeType', field:'stp', label:'ประเภทร้าน'},
-  {key:'subclass',  field:'sc',  label:'หมวดสินค้า (Subclass)'},
-  {key:'store',     field:'st',  label:'สาขา'}
+  {key:'brand',     label:'แบรนด์',                 get:r=>r.br},
+  {key:'source',    label:'ช่องทาง',                get:r=>r.src},
+  {key:'storeType', label:'ประเภทร้าน',             get:r=>r.stp},
+  {key:'subclass',  label:'หมวดสินค้า (Subclass)',  get:r=>r.sc},
+  {key:'store',     label:'สาขา',                   get:r=>r.st},
+  {key:'year',      label:'ปี',                     get:r=>r.y,          numeric:true},
+  {key:'month',     label:'เดือน',                  get:r=>r.m,          numeric:true},
+  {key:'day',       label:'วันที่',                 get:r=>r.d.getDate(), numeric:true}
 ];
 
 const S = { rows:[], refDate:null, view:'ytd', page:'sales', filters:{}, charts:{}, netLabel:'Netsale (Excl VAT)', stockRows:[], stockAsOf:null, targets:{}, agingRows:[], sort:{}, hasBillCount:false };
@@ -834,16 +841,16 @@ window.onFirebaseAuthChange=function(user){
 };
 
 /* ---------- aggregation ---------- */
-function filtered(){
-  const f=S.filters;
-  return S.rows.filter(r=>
-    (!f.brand.size||f.brand.has(r.br)) &&
-    (!f.source.size||f.source.has(r.src)) &&
-    (!f.storeType.size||f.storeType.has(r.stp)) &&
-    (!f.subclass.size||f.subclass.has(r.sc)) &&
-    (!f.store.size||f.store.has(r.st))
-  );
+// a row passes when, for every filter with a selection, its value is in that selection (Sets hold
+// string values, matching the checkbox values, so compare via String())
+function passFilters(r){
+  for(const def of FILTER_DEFS){
+    const set=S.filters[def.key];
+    if(set.size && !set.has(String(def.get(r)))) return false;
+  }
+  return true;
 }
+function filtered(){ return S.rows.filter(passFilters); }
 function filteredStock(){
   const f=S.filters;
   // stock rows carry no store-type, so map store code -> type from the sales rows when that filter
@@ -1413,16 +1420,23 @@ function updateMselButton(key){
   const n=S.filters[key].size;
   btn.textContent = (n===0||n===total) ? 'ทั้งหมด' : n+' รายการ';
 }
+const TH_MONTHS=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 function buildFilters(){
   const storeNameMap={}; S.rows.forEach(r=>{ if(!storeNameMap[r.st]) storeNameMap[r.st]=r.stn; });
   FILTER_DEFS.forEach(def=>{
-    const vals=[...new Set(S.rows.map(r=>r[def.field]))].filter(x=>x&&x!=='—').sort();
+    let vals=[...new Set(S.rows.map(r=>def.get(r)))].filter(x=>x!==null&&x!==undefined&&x!==''&&x!=='—');
+    vals.sort(def.numeric ? (a,b)=>a-b : undefined);
     const list=$('#msel_'+def.key+'_list');
     const sel=S.filters[def.key];
     list.innerHTML = vals.map(v=>{
-      const label = def.key==='store' ? `${v} — ${storeNameMap[v]||''}` : v;
-      const checked = sel.has(v) ? 'checked' : '';
-      return `<label class="msel-item"><input type="checkbox" data-key="${def.key}" value="${esc(v)}" ${checked}><span>${esc(label)}</span></label>`;
+      const sv=String(v);
+      const label = def.key==='store' ? `${v} — ${storeNameMap[v]||''}`
+        : def.key==='month' ? (TH_MONTHS[v-1]||sv)
+        : def.key==='day' ? 'วันที่ '+sv
+        : def.key==='year' ? 'ปี '+sv
+        : sv;
+      const checked = sel.has(sv) ? 'checked' : '';
+      return `<label class="msel-item"><input type="checkbox" data-key="${def.key}" value="${esc(sv)}" ${checked}><span>${esc(label)}</span></label>`;
     }).join('') || '<div class="msel-empty">ไม่มีข้อมูล</div>';
     updateMselButton(def.key);
   });
