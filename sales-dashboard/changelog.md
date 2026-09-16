@@ -12,6 +12,32 @@ Snapshot สมบูรณ์ที่รันได้ของแต่ล�
 
 ---
 
+## v1.4.0
+
+- **Date:** 2026-09-16
+- **Status:** 🧪 TESTING (รอผู้ใช้ยืนยัน)
+- **Snapshot:** `versions/v1.4.0/` (index.html, sw.js, manifest.json, icon.svg)
+- **Rollback:** v1.3.1 (`versions/v1.3.1/` หรือ commit `d0690c9`)
+- **Files:** index.html, sw.js (cache `sales-dash-v15`), manifest.json, icon.svg (ใหม่)
+- **รวม bug fix ของ v1.3.1 (tooltip Store Type) ไว้ด้วย**
+
+### Rebrand — โลโก้ใหม่ (คอนเซ็ปต์ B: Modern Blue Monoline — ผู้ใช้เลือก)
+- 🎨 เปลี่ยนโลโก้บนหัวเรื่องจาก emoji 📊 เป็น **โลโก้ SVG** (กรอบสี่เหลี่ยมมนเส้นบาง +
+  แท่งกราฟไล่เฉด + เส้นเติบโต โทนน้ำเงินแบรนด์) — คมชัดทุกความละเอียด, ปรับตามธีมสว่าง/มืด
+- เพิ่มไฟล์ `icon.svg` ใช้เป็น **favicon + ไอคอน PWA** (แทนไอคอนเดิมของแอป Golf)
+- อัปเดต `<link rel="icon">`, apple-touch-icon และ `manifest.json` ให้ชี้ที่ icon.svg
+- คงข้อความ "Sales Analyst Dashboard" ตามเดิม (ผู้ใช้เลือก)
+
+### Notes
+- ใช้ SVG icon เพราะสภาพแวดล้อมไม่มีเครื่องมือแปลง PNG — เบราว์เซอร์/แอนดรอยด์รุ่นใหม่
+  รองรับไอคอน SVG ใน manifest แล้ว (purpose: any maskable)
+- ไม่มีการเปลี่ยน logic/นิยาม KPI ใด ๆ (เป็นการเปลี่ยนแบรนด์/หน้าตาเท่านั้น)
+
+### Testing
+- ✅ หัวเรื่องแสดงโลโก้ SVG, favicon เป็น SVG, ไม่มี console error (เมื่อมี icon.svg วางคู่)
+
+---
+
 ## v1.3.1
 
 - **Date:** 2026-09-16
