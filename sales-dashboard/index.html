@@ -195,8 +195,8 @@ tr.total-row td:first-child{color:var(--brand)}
         <div class="canh sm"><canvas id="channelChart"></canvas></div>
       </div>
       <div class="panel">
-        <div class="chart-title">ยอดขายตามหมวดสินค้า (Subclass)</div>
-        <div class="chart-note">Product Subclass — Netsale (Excl VAT)</div>
+        <div class="chart-title" id="catTitle">ยอดขายตามหมวดสินค้า (Subclass)</div>
+        <div class="chart-note" id="catNote">Product Subclass — Netsale (Excl VAT)</div>
         <div class="canh sm"><canvas id="catChart"></canvas></div>
       </div>
     </div>
@@ -1039,7 +1039,13 @@ function renderChannel(rowsCur){
     datasets:[{data:e.map(x=>x[1]),backgroundColor:CATCOLORS,borderWidth:0}]},options:opt});
 }
 function renderCat(rowsCur){
-  const g=groupSum(rowsCur,'sc'); const e=topN(g,8);
+  // dimension follows the brand filter: GOODR (only) breaks down by ModelName, otherwise by Subclass
+  const bf=S.filters.brand;
+  const useModel = bf.has('GOODR') && !bf.has('NATGEO');
+  const key = useModel ? 'md' : 'sc';
+  $('#catTitle').textContent = useModel ? 'ยอดขายตามรุ่น (ModelName)' : 'ยอดขายตามหมวดสินค้า (Subclass)';
+  $('#catNote').textContent = (useModel ? 'ModelName' : 'Product Subclass') + ' — ' + S.netLabel;
+  const g=groupSum(rowsCur,key); const e=topN(g,8);
   const opt=baseOpts(); opt.indexAxis='y'; opt.plugins.legend.display=false;
   // build fresh scale configs rather than mutating baseOpts()'s: its y-scale ticks.callback is a
   // number formatter meant for a value axis, but on this horizontal chart y is the category axis —
