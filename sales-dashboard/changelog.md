@@ -12,6 +12,24 @@ Snapshot สมบูรณ์ที่รันได้ของแต่ล�
 
 ---
 
+## v1.3.1
+
+- **Date:** 2026-09-16
+- **Status:** 🧪 TESTING (รอผู้ใช้ยืนยัน)
+- **Snapshot:** `versions/v1.3.1/`
+- **Rollback:** v1.3.0 (`versions/v1.3.0/` หรือ commit `416fbe4`)
+- **Files:** index.html, sw.js (cache `sales-dash-v14`), manifest.json
+
+### Bug fix (PATCH)
+- 🐛 **แก้ tooltip กราฟ "ยอดขายราย Store Type" แสดง ฿0** — กราฟเป็นแนวนอน (ค่าอยู่แกน X)
+  แต่ tooltip เดิมอ่านค่าจากแกน Y (ดัชนีหมวด = 0) ทำให้แสดง ฿0 เสมอ
+  แก้ให้ tooltip อ่านค่าจาก `parsed.x` เฉพาะกราฟแนวนอนนี้ (ไม่กระทบกราฟอื่น)
+
+### Testing
+- ✅ ยืนยัน tooltip แสดงค่าจริง (เช่น "Shop: ฿10.5M") • ไม่มี console error • ไม่มีการเปลี่ยนนิยาม KPI
+
+---
+
 ## v1.3.0
 
 - **Date:** 2026-09-16
