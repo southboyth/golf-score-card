@@ -290,7 +290,7 @@ tr.total-row td:first-child{color:var(--brand)}
         <div class="tbl-scroll" style="margin-bottom:16px">
           <table id="alertTbl">
             <thead><tr>
-              <th>สินค้า</th><th>หมวด</th><th>สถานะ</th><th>สต็อกคงเหลือ</th><th>มูลค่าสต็อก</th>
+              <th class="prodCol">สินค้า</th><th>หมวด</th><th>สถานะ</th><th>สต็อกคงเหลือ</th><th>มูลค่าสต็อก</th>
               <th>ขาย 90 วัน</th><th>Sell-Through</th><th>ยอดขาย/สัปดาห์</th><th>Weeks of Cover</th>
             </tr></thead>
             <tbody></tbody>
@@ -301,7 +301,7 @@ tr.total-row td:first-child{color:var(--brand)}
         <div class="tbl-scroll">
           <table id="stockTbl">
             <thead><tr>
-              <th>สินค้า</th><th>หมวด</th><th>ABC</th><th>สถานะ</th><th>สต็อกคงเหลือ</th><th>มูลค่าสต็อก</th>
+              <th class="prodCol">สินค้า</th><th>หมวด</th><th>ABC</th><th>สถานะ</th><th>สต็อกคงเหลือ</th><th>มูลค่าสต็อก</th>
               <th>ขาย 90 วัน</th><th>Sell-Through</th><th>ยอดขาย/สัปดาห์</th><th>Weeks of Cover</th>
             </tr></thead>
             <tbody></tbody>
@@ -1232,17 +1232,21 @@ function renderStock(){
   // sales in the trailing windows, respecting the same brand/subclass/store filters as the rest
   // of the dashboard (filtered() also applies channel/store-type, which is fine — an empty
   // selection there means "all", so it never narrows the stock analysis unless the user picks one)
+  // product dimension follows the brand filter (GOODR-only -> ModelName, else Subclass), same as Sales
+  const dim=brandProductDim(), dimKey=dim.key;
   const salesAll=filtered();
   const sold90ByModel={}, sold56ByModel={}, saleVal90ByModel={};
   for(const r of salesAll){
-    if(inRange(r,winStart90,asOf)){ sold90ByModel[r.md]=(sold90ByModel[r.md]||0)+r.qty; saleVal90ByModel[r.md]=(saleVal90ByModel[r.md]||0)+r.net; }
-    if(inRange(r,winStart56,asOf)) sold56ByModel[r.md]=(sold56ByModel[r.md]||0)+r.qty;
+    const dk=r[dimKey];
+    if(inRange(r,winStart90,asOf)){ sold90ByModel[dk]=(sold90ByModel[dk]||0)+r.qty; saleVal90ByModel[dk]=(saleVal90ByModel[dk]||0)+r.net; }
+    if(inRange(r,winStart56,asOf)) sold56ByModel[dk]=(sold56ByModel[dk]||0)+r.qty;
   }
 
-  // aggregate stock by ModelName
+  // aggregate stock by the chosen dimension
   const byModel={};
   for(const r of stk){
-    const o=byModel[r.md] || (byModel[r.md]={qty:0,stockAmt:0,costAmt:0,sc:r.sc,gdSet:new Set()});
+    const dk=r[dimKey];
+    const o=byModel[dk] || (byModel[dk]={qty:0,stockAmt:0,costAmt:0,sc:r.sc,gdSet:new Set()});
     o.qty+=r.qty; o.stockAmt+=r.stockAmt; o.costAmt+=r.costAmt; o.gdSet.add(r.gd);
   }
 
@@ -1256,7 +1260,7 @@ function renderStock(){
     else if(avgWeekly>0.0001 && woc<2){ status='🔴 ใกล้หมด'; statusClass='low'; }
     else if(avgWeekly<=0.0001 || woc>12){ status='🟡 ขายช้า/ค้างสต็อก'; statusClass='slow'; }
     else { status='🟢 ปกติ'; statusClass='ok'; }
-    return {md, sc:o.sc, nGd:o.gdSet.size, qty:o.qty, stockAmt:o.stockAmt, costAmt:o.costAmt,
+    return {md, sc: dimKey==='sc' ? '—' : o.sc, nGd:o.gdSet.size, qty:o.qty, stockAmt:o.stockAmt, costAmt:o.costAmt,
       sold90, saleVal90, sellThrough, avgWeekly, woc, status, statusClass};
   });
 
@@ -1281,7 +1285,8 @@ function renderStock(){
   const totalSold90=models.reduce((a,m)=>a+m.sold90,0);
   const overallST=(totalSold90+totalQty)?totalSold90/(totalSold90+totalQty)*100:0;
 
-  $('#stockNote').textContent=`ณ วันที่สแนปช็อตสต็อก ${iso(asOf)} • ${skuCount.toLocaleString()} SKU / ${models.length.toLocaleString()} รุ่นสินค้า (หลังกรอง) • Sell-Through/WOC คำนวณจากยอดขาย ${iso(winStart90)} → ${iso(asOf)}`;
+  document.querySelectorAll('.prodCol').forEach(th=>th.textContent = dimKey==='md'?'รุ่น (ModelName)':'หมวด (Subclass)');
+  $('#stockNote').textContent=`ณ วันที่สแนปช็อตสต็อก ${iso(asOf)} • แยกตาม ${dim.en} • ${skuCount.toLocaleString()} SKU / ${models.length.toLocaleString()} ${dimKey==='md'?'รุ่น':'หมวด'} (หลังกรอง) • Sell-Through/WOC คำนวณจากยอดขาย ${iso(winStart90)} → ${iso(asOf)}`;
 
   $('#stockKpis').innerHTML=[
     {k:'สต็อกคงเหลือ', v:nf0.format(totalQty)+' ชิ้น', sub:`${skuCount} SKU • ${storeCount} สาขา/คลัง`},
