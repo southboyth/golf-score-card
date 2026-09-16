@@ -12,6 +12,41 @@ Snapshot สมบูรณ์ที่รันได้ของแต่ล�
 
 ---
 
+## v1.3.0
+
+- **Date:** 2026-09-16
+- **Status:** 🧪 TESTING (รอผู้ใช้ทดสอบและ Approve)
+- **Snapshot:** `versions/v1.3.0/`
+- **Rollback:** v1.2.0 (`versions/v1.2.0/` หรือ commit `a30a3d4`)
+- **Files:** index.html, sw.js (cache `sales-dash-v13`), manifest.json
+
+### New feature (แผน Stage 3 สุดท้าย — อยู่ในหน้า Sales, ไม่แตะ v1.2.0)
+1. **📁 Subclass Performance** — ตารางสมรรถนะรายหมวด เพิ่มใต้กราฟโดนัท (คงกราฟโดนัทเดิมไว้)
+   - คอลัมน์: หมวดสินค้า (Subclass), ยอดขาย ฿, สัดส่วน (Mix %), ชิ้น, YoY %, ST %, Stock, MOH
+   - จัดเรียงได้ทุกคอลัมน์
+   - มิติ brand-aware: เลือกเฉพาะ GOODR จะสลับเป็น **Model Performance** (ModelName) อัตโนมัติ ให้ตรงกับกราฟโดนัทด้านบน
+
+### Metric definitions (ใช้ของเดิมทั้งหมด — ไม่มีนิยามใหม่)
+- ยอดขาย / Mix% / ชิ้น / YoY = ตามช่วง Daily/MTD/YTD และตัวกรอง (Mix% = ยอดขายหมวด ÷ ยอดขายรวมในช่วง)
+- ST% / Stock / MOH = สแนปช็อตสต็อก 90 วันล่าสุด (นิยาม ST%/MOH เดิม) — ต้องมีไฟล์สต็อก
+
+### Existing functionality preserved
+- **กราฟโดนัท (product mix) เดิมยังอยู่ครบ** — ตารางนี้เป็นส่วนเสริม ไม่ได้แทนที่ (ตามที่ผู้ใช้กำชับ)
+
+### Testing (headless, ไฟล์จริง)
+- ✅ ไม่มี console error
+- ✅ ALL brands → "Subclass Performance" 42 หมวด, Mix% รวม = 100%, ยอดขายรวม ฿27,053,060 (ตรงกับ total เดิม)
+- ✅ EYEWEAR แถวแรก: ฿11.16M · 41.3% · 12,108 ชิ้น · YoY −0.4% · ST 31.6% · Stock 8,804 · MOH 6.5
+- ✅ GOODR-only → สลับเป็น "Model Performance" (ModelName) 23 รายการ อัตโนมัติ
+- ✅ จัดเรียงได้ • กราฟโดนัทเดิมยังแสดง • ไม่มีสต็อก → ST%/Stock/MOH = "—"
+
+### Notes
+- ครบแผน 3 Stage แล้ว (v1.1.0 → v1.3.0) จาก 9 Features ที่ขอ:
+  - ทำแล้ว: 1,2,5,6 (v1.1.0) · 3,4 (v1.2.0) · 8 (v1.3.0)
+  - ข้ามตามที่ผู้ใช้เลือก (ข้อมูลไม่รองรับ): 7 (aging 30/60/90/180, no-sales windows), 9 (Size analysis)
+
+---
+
 ## v1.2.0
 
 - **Date:** 2026-09-16
