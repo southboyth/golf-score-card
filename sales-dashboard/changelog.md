@@ -15,7 +15,7 @@ Snapshot สมบูรณ์ที่รันได้ของแต่ล�
 ## v1.4.0
 
 - **Date:** 2026-09-16
-- **Status:** 🧪 TESTING (รอผู้ใช้ยืนยัน)
+- **Status:** ✅ STABLE (ผู้ใช้ยืนยัน "ใช้งานได้" 2026-09-16)
 - **Snapshot:** `versions/v1.4.0/` (index.html, sw.js, manifest.json, icon.svg)
 - **Rollback:** v1.3.1 (`versions/v1.3.1/` หรือ commit `d0690c9`)
 - **Files:** index.html, sw.js (cache `sales-dash-v15`), manifest.json, icon.svg (ใหม่)
@@ -41,7 +41,7 @@ Snapshot สมบูรณ์ที่รันได้ของแต่ล�
 ## v1.3.1
 
 - **Date:** 2026-09-16
-- **Status:** 🧪 TESTING (รอผู้ใช้ยืนยัน)
+- **Status:** 🗄️ DEPRECATED (fix นี้ถูกรวมเข้า v1.4.0 แล้ว — เก็บไว้สำหรับ rollback)
 - **Snapshot:** `versions/v1.3.1/`
 - **Rollback:** v1.3.0 (`versions/v1.3.0/` หรือ commit `416fbe4`)
 - **Files:** index.html, sw.js (cache `sales-dash-v14`), manifest.json
@@ -59,7 +59,7 @@ Snapshot สมบูรณ์ที่รันได้ของแต่ล�
 ## v1.3.0
 
 - **Date:** 2026-09-16
-- **Status:** ✅ STABLE (ผู้ใช้ยืนยัน "ใช้งานได้" 2026-09-16)
+- **Status:** 🗄️ DEPRECATED (ถูกแทนที่ด้วย v1.4.0 — ยังเก็บไว้สำหรับ rollback)
 - **Snapshot:** `versions/v1.3.0/`
 - **Rollback:** v1.2.0 (`versions/v1.2.0/` หรือ commit `a30a3d4`)
 - **Files:** index.html, sw.js (cache `sales-dash-v13`), manifest.json
