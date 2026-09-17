@@ -12,10 +12,42 @@ Snapshot สมบูรณ์ที่รันได้ของแต่ล�
 
 ---
 
+## v2.1.0
+
+- **Date:** 2026-09-17
+- **Status:** 🧪 TESTING (รอผู้ใช้ยืนยัน "ใช้งานได้")
+- **Snapshot:** `versions/v2.1.0/` (index.html, sw.js, manifest.json, icon.svg)
+- **Rollback:** v2.0.0 (`versions/v2.0.0/` หรือ commit `eb4f903`)
+- **Files:** index.html, sw.js (cache `sales-dash-v19`), manifest.json, icon.svg
+
+### Store Type Library — แก้เอง/อัปเองได้ (ไม่ต้องแก้โค้ด)
+- **ปุ่มใหม่ 2 ปุ่ม** (แถบเครื่องมือด้านบน):
+  - **🏷️ Template ประเภทร้าน** — ดาวน์โหลดไฟล์ Excel ที่มีทุกร้านในข้อมูล **เติมประเภทปัจจุบันให้แล้ว**
+    (คอลัมน์ Store_Code / Store_Name / Store_Type) → แก้ในไฟล์แล้วเซฟ
+  - **🏷️ อัปโหลดประเภทร้าน** — อัปไฟล์ที่แก้กลับเข้าไป ระบบอัปเดตทันที
+- **ลำดับความสำคัญใหม่:** คอลัมน์ Store Type ในไฟล์ยอดขาย (ถ้ามี) > **Library ที่อัปเอง (S.storeTypeLib)**
+  > Library ฝังในโค้ด (ค่าเริ่มต้น) > "—"
+- **อัปแบบผสาน (merge):** อัปไฟล์แล้วจะ**อัปเดต/เพิ่มเฉพาะรหัสในไฟล์** ร้านอื่นคงเดิม (แก้ทีละส่วนได้)
+- **มีผลย้อนหลังทันที:** เมื่ออัป Library ใหม่ ระบบคำนวณ `stp` ของทุกแถวที่โหลดอยู่ใหม่ (ทุกเดือน + aging)
+  แล้ว render ใหม่ — ไม่ต้องอัปไฟล์ยอดขายซ้ำ
+- **บันทึกถาวร:** เก็บใน localStorage + คลาวด์ (`company/main/meta/storeTypes`) ใช้ข้ามอุปกรณ์ได้
+- ค่าเริ่มต้น 164 ร้าน (จาก v1.6.0) ยังอยู่ — Library ที่อัปเองแค่มา "ทับ" เฉพาะรหัสที่ต้องการ
+
+### ✅ ผลตรวจสอบ (headless)
+- อัปไฟล์ override: KS001 Shop→FLAGSHIP-TEST, HS002 Shop→TESTMALL — เปลี่ยนทันที, ร้านอื่น (KS002) คงเดิม
+- ตาราง/กราฟ "ราย Store Type" อัปเดตกลุ่มใหม่ทันที, ดาวน์โหลด template ได้ (store-type-library.xlsx)
+- **Regression:** ไฟล์เก่า net คงที่ `฿27,053,060`, errors NONE
+- **ไม่ใช่ KPI definition change** — เป็นการปรับ dimension (การจัดกลุ่ม) เท่านั้น
+
+---
+
 ## v2.0.0
 
 - **Date:** 2026-09-17
-- **Status:** 🧪 TESTING (รอผู้ใช้ยืนยัน "ใช้งานได้") — เปลี่ยนโครงสร้างข้อมูลใหญ่ (MAJOR)
+- **Status:** ✅ STABLE (ผู้ใช้สั่งมาร์ก 2026-09-17 — เปลี่ยนโครงสร้างข้อมูลใหญ่ MAJOR)
+- **หมายเหตุการทดสอบ:** logic ทั้งหมดผ่าน headless test แล้ว; **ส่วนอ่าน/เขียนคลาวด์รายเดือน + migration
+  ยังไม่ได้ทดสอบสด** (ติด Firebase auth/unauthorized-domain — ต้องเพิ่มโดเมน southboyth.github.io ใน
+  Firebase Console ก่อน) ผู้ใช้ยอมรับความเสี่ยงและสั่งมาร์ก STABLE โดยมี rollback = v1.6.0 รองรับ
 - **Snapshot:** `versions/v2.0.0/` (index.html, sw.js, manifest.json, icon.svg)
 - **Rollback:** v1.6.0 (`versions/v1.6.0/` หรือ commit `6e0d291`)
 - **Files:** index.html, sw.js (cache `sales-dash-v18`), manifest.json, icon.svg
@@ -56,7 +88,7 @@ Snapshot สมบูรณ์ที่รันได้ของแต่ล�
 ## v1.6.0
 
 - **Date:** 2026-09-17
-- **Status:** ✅ STABLE (ผู้ใช้ยืนยัน "ใช้ได้" 2026-09-17)
+- **Status:** 🗄️ DEPRECATED (เก็บไว้ rollback — v2.0.0 ขึ้นแทน)
 - **Snapshot:** `versions/v1.6.0/` (index.html, sw.js, manifest.json, icon.svg)
 - **Rollback:** v1.5.0 (`versions/v1.5.0/` หรือ commit `7c14096`)
 - **Files:** index.html, sw.js (cache `sales-dash-v17`), manifest.json, icon.svg
