@@ -15,7 +15,7 @@ Snapshot สมบูรณ์ที่รันได้ของแต่ล�
 ## v2.1.0
 
 - **Date:** 2026-09-17
-- **Status:** 🧪 TESTING (รอผู้ใช้ยืนยัน "ใช้งานได้")
+- **Status:** ✅ STABLE (ผู้ใช้ยืนยัน "ใช้งานได้" 2026-09-17) — เวอร์ชันปัจจุบันบนเว็บจริง
 - **Snapshot:** `versions/v2.1.0/` (index.html, sw.js, manifest.json, icon.svg)
 - **Rollback:** v2.0.0 (`versions/v2.0.0/` หรือ commit `eb4f903`)
 - **Files:** index.html, sw.js (cache `sales-dash-v19`), manifest.json, icon.svg
@@ -44,7 +44,7 @@ Snapshot สมบูรณ์ที่รันได้ของแต่ล�
 ## v2.0.0
 
 - **Date:** 2026-09-17
-- **Status:** ✅ STABLE (ผู้ใช้สั่งมาร์ก 2026-09-17 — เปลี่ยนโครงสร้างข้อมูลใหญ่ MAJOR)
+- **Status:** 🗄️ DEPRECATED (เก็บไว้ rollback — v2.1.0 ขึ้นแทน)
 - **หมายเหตุการทดสอบ:** logic ทั้งหมดผ่าน headless test แล้ว; **ส่วนอ่าน/เขียนคลาวด์รายเดือน + migration
   ยังไม่ได้ทดสอบสด** (ติด Firebase auth/unauthorized-domain — ต้องเพิ่มโดเมน southboyth.github.io ใน
   Firebase Console ก่อน) ผู้ใช้ยอมรับความเสี่ยงและสั่งมาร์ก STABLE โดยมี rollback = v1.6.0 รองรับ
