@@ -15,7 +15,8 @@ Snapshot สมบูรณ์ที่รันได้ของแต่ล�
 ## v2.2.2
 
 - **Date:** 2026-09-17
-- **Status:** 🧪 TESTING (รอผู้ใช้ยืนยัน "ใช้งานได้")
+- **Status:** ✅ STABLE (ผู้ใช้ยืนยัน "อัพได้แล้ว" 2026-09-17) — เวอร์ชันปัจจุบันบนเว็บจริง
+  (รวมงาน v2.2.0 อัปหลายไฟล์ + v2.2.1 จับคู่คอลัมน์ยืดหยุ่น + v2.2.2 ซ่อม !ref)
 - **Snapshot:** `versions/v2.2.2/` — **Rollback:** v2.2.1 (`versions/v2.2.1/`)
 - **Files:** index.html, sw.js (cache `sales-dash-v22`), manifest.json, icon.svg
 
@@ -35,7 +36,7 @@ Snapshot สมบูรณ์ที่รันได้ของแต่ล�
 ## v2.2.1
 
 - **Date:** 2026-09-17
-- **Status:** 🧪 TESTING (รวมใน v2.2.2)
+- **Status:** 🗄️ DEPRECATED (รวมใน v2.2.2 STABLE — เก็บไว้ rollback)
 - **Snapshot:** `versions/v2.2.1/` — **Rollback:** v2.2.0 (`versions/v2.2.0/`)
 - **Files:** index.html, sw.js (cache `sales-dash-v21`), manifest.json, icon.svg
 
@@ -55,7 +56,7 @@ Snapshot สมบูรณ์ที่รันได้ของแต่ล�
 ## v2.2.0
 
 - **Date:** 2026-09-17
-- **Status:** 🧪 TESTING (รวมใน v2.2.1)
+- **Status:** 🗄️ DEPRECATED (รวมใน v2.2.2 STABLE — เก็บไว้ rollback)
 - **Snapshot:** `versions/v2.2.0/` (index.html, sw.js, manifest.json, icon.svg)
 - **Rollback:** v2.1.0 (`versions/v2.1.0/`)
 - **Files:** index.html, sw.js (cache `sales-dash-v20`), manifest.json, icon.svg
@@ -78,7 +79,7 @@ Snapshot สมบูรณ์ที่รันได้ของแต่ล�
 ## v2.1.0
 
 - **Date:** 2026-09-17
-- **Status:** ✅ STABLE (ผู้ใช้ยืนยัน "ใช้งานได้" 2026-09-17)
+- **Status:** 🗄️ DEPRECATED (เก็บไว้ rollback — v2.2.2 ขึ้นแทน)
 - **Snapshot:** `versions/v2.1.0/` (index.html, sw.js, manifest.json, icon.svg)
 - **Rollback:** v2.0.0 (`versions/v2.0.0/` หรือ commit `eb4f903`)
 - **Files:** index.html, sw.js (cache `sales-dash-v19`), manifest.json, icon.svg
