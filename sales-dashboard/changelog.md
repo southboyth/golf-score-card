@@ -12,10 +12,30 @@ Snapshot สมบูรณ์ที่รันได้ของแต่ล�
 
 ---
 
-## v2.2.1
+## v2.2.2
 
 - **Date:** 2026-09-17
 - **Status:** 🧪 TESTING (รอผู้ใช้ยืนยัน "ใช้งานได้")
+- **Snapshot:** `versions/v2.2.2/` — **Rollback:** v2.2.1 (`versions/v2.2.1/`)
+- **Files:** index.html, sw.js (cache `sales-dash-v22`), manifest.json, icon.svg
+
+### แก้ไฟล์อ่านออกมาว่าง (`!ref` หาย) — ต่อจาก v2.2.1
+- **อาการที่พบ:** ไฟล์ ก.ค. ขึ้น error `[sheets: Sheet1 • คอลัมน์ที่เจอ: (ว่าง)]` — SheetJS อ่าน sheet
+  ได้แต่ได้ข้อมูลว่าง เพราะไฟล์ export ไม่ได้ประกาศช่วงข้อมูล (`!ref`) ของ sheet
+- **แก้:** เพิ่ม `fixSheetRefs()` — คำนวณช่วงข้อมูลใหม่จาก**ที่อยู่เซลล์จริง**แล้วตั้ง `!ref` ให้ถูก
+  ก่อนตรวจ header (แก้อัตโนมัติทุกไฟล์ที่ !ref หาย/แคบเกินจริง)
+- **Diagnostic ละเอียดขึ้น:** ถ้ายังไม่ผ่าน error จะบอก `!ref` และจำนวนเซลล์ (`cells=N`) ด้วย
+  — ถ้า `cells=0` แปลว่า SheetJS อ่านไฟล์ไม่ออกเลย (เช่นรูปแบบ Strict OOXML) → ต้อง Save As เป็น
+  .xlsx มาตรฐานก่อน
+- **ทดสอบ:** จำลอง !ref หาย → อ่านได้ 0 แถว → หลัง fixSheetRefs อ่านได้ครบ → parse สำเร็จ;
+  ไฟล์เดิมไม่กระทบ (net `฿27,053,060`), errors NONE
+
+---
+
+## v2.2.1
+
+- **Date:** 2026-09-17
+- **Status:** 🧪 TESTING (รวมใน v2.2.2)
 - **Snapshot:** `versions/v2.2.1/` — **Rollback:** v2.2.0 (`versions/v2.2.0/`)
 - **Files:** index.html, sw.js (cache `sales-dash-v21`), manifest.json, icon.svg
 
