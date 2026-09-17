@@ -1,4 +1,4 @@
-const CACHE="sales-dash-v21";
+const CACHE="sales-dash-v20";
 const ASSETS=["./","./index.html","./manifest.json","./icon.svg"];
 self.addEventListener("install",e=>{
   self.skipWaiting();

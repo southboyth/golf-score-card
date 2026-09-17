@@ -690,44 +690,31 @@ const parseDMY = v => {
 };
 
 /* ---------- parse workbook ---------- */
-// normalize a header cell for tolerant matching: strip zero-width / BOM chars, collapse whitespace,
-// trim, lowercase — so "Sale_Date", "sale_date ", "Sale_Date​", NBSP variants all match
-function normHeader(s){ return String(s==null?'':s).replace(/[​‌‍﻿]/g,'').replace(/\s+/g,' ').trim().toLowerCase(); }
-const HEADER_SCAN_ROWS=40; // some exports (e.g. "UnFinal") have title/filter rows above the header
 function pickSheet(wb){
   let best=null,bestScore=-1;
   for(const name of wb.SheetNames){
     const ws=wb.Sheets[name];
-    let arr; try{ arr=XLSX.utils.sheet_to_json(ws,{header:1,range:0,defval:null}); }catch(e){ continue; }
-    for(let r=0;r<Math.min(HEADER_SCAN_ROWS,arr.length);r++){
-      const cells=(arr[r]||[]).map(normHeader);
+    const arr=XLSX.utils.sheet_to_json(ws,{header:1,range:0,defval:null});
+    // find a header row within first 8 rows that contains known cols
+    for(let r=0;r<Math.min(8,arr.length);r++){
+      const cells=(arr[r]||[]).map(x=>String(x||'').trim());
       let score=0;
-      for(const k of ['date','net','qty','model']) if(ALIAS[k].some(a=>cells.includes(normHeader(a)))) score++;
+      for(const k of ['date','net','qty','model']) if(ALIAS[k].some(a=>cells.includes(a))) score++;
       if(score>bestScore){ bestScore=score; best={name,headerRow:r}; }
     }
   }
   return bestScore>=2?best:null;
 }
 function mapCols(headers){
-  const hn=headers.map(normHeader);
+  const hn=headers.map(h=>String(h||'').trim());
   const map={};
-  // respect alias PRIORITY (first alias in list wins, not first column); tolerant name matching
-  for(const k in ALIAS){ for(const a of ALIAS[k]){ const i=hn.indexOf(normHeader(a)); if(i>=0){ map[k]=i; break; } } }
+  // respect alias PRIORITY (first alias in list wins, not first column)
+  for(const k in ALIAS){ for(const a of ALIAS[k]){ const i=hn.indexOf(a); if(i>=0){ map[k]=i; break; } } }
   return map;
 }
 function parseWorkbook(wb){
   const pick=pickSheet(wb);
-  if(!pick){
-    // diagnostic: report what we actually saw so the file can be fixed remotely without uploading it
-    let diag='';
-    try{
-      const s0=wb.SheetNames[0];
-      const a0=XLSX.utils.sheet_to_json(wb.Sheets[s0],{header:1,defval:null});
-      const firstRow=(a0.find(r=>r&&r.some(c=>c!=null))||[]).slice(0,15).map(c=>String(c==null?'':c)).join(' | ');
-      diag=` [sheets: ${wb.SheetNames.join(', ')} • คอลัมน์ที่เจอ: ${firstRow||'(ว่าง)'}]`;
-    }catch(e){}
-    throw new Error('ไม่พบ sheet ที่มีคอลัมน์ยอดขาย (ต้องมีอย่างน้อย Sale_Date และ Netsale)'+diag);
-  }
+  if(!pick) throw new Error('ไม่พบ sheet ที่มีคอลัมน์ยอดขาย (ต้องมีอย่างน้อย Sale_Date และ Netsale)');
   const ws=wb.Sheets[pick.name];
   const arr=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true,cellDates:true});
   const headers=arr[pick.headerRow];
