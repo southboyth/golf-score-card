@@ -12,10 +12,30 @@ Snapshot สมบูรณ์ที่รันได้ของแต่ล�
 
 ---
 
-## v2.2.0
+## v2.2.1
 
 - **Date:** 2026-09-17
 - **Status:** 🧪 TESTING (รอผู้ใช้ยืนยัน "ใช้งานได้")
+- **Snapshot:** `versions/v2.2.1/` — **Rollback:** v2.2.0 (`versions/v2.2.0/`)
+- **Files:** index.html, sw.js (cache `sales-dash-v21`), manifest.json, icon.svg
+
+### แก้ความเข้ากันได้ของไฟล์ (บางไฟล์ขึ้น "ไม่พบ sheet ที่มีคอลัมน์ยอดขาย")
+- **ปัญหา:** ไฟล์บางตัว (เช่น export แบบ "UnFinal") อัปไม่ได้ แม้จะมีคอลัมน์ครบ
+- **แก้ให้ทนทานขึ้น:**
+  - `normHeader()` — จับคู่ชื่อคอลัมน์แบบ **ไม่สนตัวพิมพ์ใหญ่/เล็ก, ช่องว่างซ้ำ, และอักขระซ่อน**
+    (zero-width space / BOM / NBSP) ทั้งตอนหา sheet และ map คอลัมน์
+  - ขยายการค้นหาแถว header จาก 8 → **40 แถวแรก** (รองรับไฟล์ที่มีแถวหัวเรื่อง/ตัวกรองอยู่เหนือ header)
+  - ข้าม sheet ที่อ่านไม่ได้แทนที่จะล้มทั้งไฟล์
+- **Error แจ้งรายละเอียดขึ้น:** ถ้ายังหา sheet ไม่เจอ จะบอก **รายชื่อ sheet + ชื่อคอลัมน์ที่ระบบเห็นจริง**
+  เพื่อวินิจฉัยได้แม้ไฟล์ใหญ่เกินอัปโหลด
+- **Regression:** ไฟล์เดิมยังอ่านถูกต้อง (Mer-Raw 33,194 แถว; ไฟล์เก่า net `฿27,053,060`), errors NONE
+
+---
+
+## v2.2.0
+
+- **Date:** 2026-09-17
+- **Status:** 🧪 TESTING (รวมใน v2.2.1)
 - **Snapshot:** `versions/v2.2.0/` (index.html, sw.js, manifest.json, icon.svg)
 - **Rollback:** v2.1.0 (`versions/v2.1.0/`)
 - **Files:** index.html, sw.js (cache `sales-dash-v20`), manifest.json, icon.svg
