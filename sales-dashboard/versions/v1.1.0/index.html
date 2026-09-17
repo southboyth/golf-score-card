@@ -1,0 +1,1841 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1220">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Sales Dashboard">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="../icon-192.png">
+<title>Sales Analyst Dashboard</title>
+<style>
+:root{
+  --bg:#f4f6fb; --card:#ffffff; --text:#111827; --muted:#6b7280; --line:#e5e7eb;
+  --brand:#2563eb; --brand-soft:#dbeafe; --up:#16a34a; --down:#dc2626; --warn:#d97706;
+  --chip:#eef2ff; --shadow:0 4px 20px #0000000d;
+  --c1:#2563eb;--c2:#16a34a;--c3:#f59e0b;--c4:#db2777;--c5:#7c3aed;--c6:#0891b2;--c7:#dc2626;--c8:#65a30d;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0b1220; --card:#141c2f; --text:#e6eaf2; --muted:#94a3b8; --line:#233046;
+    --brand:#5b8cff; --brand-soft:#1b2b52; --chip:#182545; --shadow:0 6px 24px #0000003d;
+  }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Sarabun","Noto Sans Thai",sans-serif}
+body{padding:env(safe-area-inset-top) 12px env(safe-area-inset-bottom);min-height:100vh}
+.wrap{max-width:1180px;margin:0 auto;padding:12px 0 60px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:6px 2px 14px}
+.top h1{font-size:22px;margin:0;font-weight:800;letter-spacing:-.3px}
+.top .sub{font-size:12px;color:var(--muted)}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.authbar{display:flex;justify-content:flex-end;align-items:center;gap:10px;padding:4px 2px 10px;flex-wrap:wrap}
+.authbar .email{font-size:12px;color:var(--muted)}
+#syncStatus{font-size:11px;color:var(--muted);text-align:right}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:10px;
+  padding:9px 13px;font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+.btn.primary{background:var(--brand);color:#fff;border-color:transparent}
+.btn:active{transform:scale(.98)}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:12px;box-shadow:var(--shadow)}
+.seg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;background:var(--chip);padding:4px;border-radius:12px;max-width:560px}
+.seg button{border:0;background:transparent;border-radius:9px;padding:11px 4px;font-weight:800;color:var(--muted);cursor:pointer;font-size:13px}
+.seg button.active{background:var(--card);color:var(--brand);box-shadow:0 1px 6px #0002}
+.pagenav{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.pagenav button{flex:1;min-width:150px;border:1px solid var(--line);background:var(--card);color:var(--muted);
+  border-radius:12px;padding:13px 12px;font-weight:800;font-size:15px;cursor:pointer;transition:.15s}
+.pagenav button.active{background:var(--brand);color:#fff;border-color:transparent;box-shadow:var(--shadow)}
+.pagenav button:active{transform:scale(.99)}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.filters .fld{flex:1;min-width:150px}
+.filters label{display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:0 0 4px}
+select,input[type=date]{width:100%;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--card);
+  color:var(--text);font-size:14px;padding:0 10px;outline:none}
+select:focus,input:focus{border-color:var(--brand);box-shadow:0 0 0 3px #2563eb22}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media(max-width:820px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:var(--shadow)}
+.kpi .k{font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.kpi .v{font-size:24px;font-weight:850;margin:6px 0 3px;letter-spacing:-.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:820px){.kpi .v{font-size:20px}}
+.kpi .sub{font-size:12px;color:var(--muted)}
+.kpi .sub>div+div{margin-top:3px}
+.delta{font-weight:800;font-size:12px;padding:2px 7px;border-radius:999px;display:inline-block}
+.delta.up{color:var(--up);background:#16a34a1a}
+.delta.down{color:var(--down);background:#dc26261a}
+.delta.flat{color:var(--muted);background:#8888881a}
+/* sales-health status indicators (GREEN/YELLOW/RED) — v1.1.0 */
+.kpi.g{border-left:4px solid var(--up)}
+.kpi.y{border-left:4px solid var(--warn)}
+.kpi.r{border-left:4px solid var(--down)}
+.kpi.n{border-left:4px solid var(--line)}
+.hbadge{font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;display:inline-block;margin-bottom:4px}
+.hbadge.g{color:var(--up);background:#16a34a1a}
+.hbadge.y{color:var(--warn);background:#d977061a}
+.hbadge.r{color:var(--down);background:#dc26261a}
+.hbadge.n{color:var(--muted);background:#8888881a}
+td.cell-g{color:var(--up);font-weight:700}
+td.cell-r{color:var(--down);font-weight:700}
+td.cell-y{color:var(--warn);font-weight:700}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:820px){.grid2{grid-template-columns:1fr}}
+.chart-title{font-size:14px;font-weight:800;margin:0 0 4px}
+.chart-note{font-size:11px;color:var(--muted);margin:0 0 10px}
+.canh{position:relative;height:280px}
+.canh.sm{height:240px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:9px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left;white-space:normal}
+th{position:sticky;top:0;background:var(--card);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;z-index:1}
+#dash thead th{cursor:pointer;user-select:none;-webkit-user-select:none}
+#dash thead th:hover{color:var(--brand)}
+#dash thead th[data-dir=asc]::after{content:" ▲";font-size:9px;color:var(--brand)}
+#dash thead th[data-dir=desc]::after{content:" ▼";font-size:9px;color:var(--brand)}
+.tbl-scroll{max-height:460px;overflow:auto;border:1px solid var(--line);border-radius:12px}
+.empty{text-align:center;padding:48px 16px;color:var(--muted)}
+.empty .big{font-size:44px;margin-bottom:8px}
+.drop{border:2px dashed var(--line);border-radius:16px;padding:34px 16px;text-align:center;cursor:pointer;transition:.15s}
+.drop.hover{border-color:var(--brand);background:var(--brand-soft)}
+.pill{font-size:11px;font-weight:700;color:var(--brand);background:var(--chip);padding:3px 9px;border-radius:999px}
+.hide{display:none!important}
+.foot{font-size:11px;color:var(--muted);text-align:center;padding:18px 0 0}
+.warnbar{font-size:12px;background:#d977061a;color:var(--warn);border:1px solid #d9770633;border-radius:10px;padding:9px 12px;margin-bottom:12px}
+.msel{position:relative}
+.msel-btn{width:100%;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--text);
+  font-size:13px;padding:0 10px;text-align:left;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:6px}
+.msel-btn:after{content:'▾';color:var(--muted);font-size:10px;flex:0 0 auto}
+.msel-btn-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.msel-panel{position:absolute;top:calc(100% + 6px);left:0;right:0;min-width:240px;background:var(--card);
+  border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);z-index:30;padding:8px;max-height:300px;display:flex;flex-direction:column}
+.msel-panel.hide{display:none!important}
+.msel-search{width:100%;height:34px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);
+  font-size:13px;padding:0 8px;margin-bottom:6px;outline:none}
+.msel-tools{display:flex;gap:6px;margin-bottom:6px}
+.msel-tools button{flex:1;font-size:11px;font-weight:700;border:1px solid var(--line);background:var(--chip);color:var(--brand);border-radius:7px;padding:6px;cursor:pointer}
+.msel-list{overflow:auto;flex:1}
+.msel-item{display:flex;align-items:center;gap:8px;padding:6px 5px;font-size:13px;border-radius:6px;cursor:pointer}
+.msel-item:hover{background:var(--chip)}
+.msel-item input{width:auto;height:auto;flex:0 0 auto}
+.msel-empty{padding:10px;color:var(--muted);font-size:12px;text-align:center}
+.sale-day-note{font-size:11px;color:var(--muted);margin-top:8px}
+.subhead{font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin:0 0 8px}
+tr.total-row td{font-weight:800;background:var(--chip);border-bottom:2px solid var(--brand)}
+tr.total-row td:first-child{color:var(--brand)}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+
+  <div class="authbar">
+    <span id="syncStatus"></span>
+    <button class="btn primary" id="signInBtn">🔑 เข้าสู่ระบบด้วย Google</button>
+    <div class="hide" id="userBox" style="display:flex;align-items:center;gap:8px">
+      <span class="email" id="userEmail"></span>
+      <button class="btn" id="refreshBtn">🔄 รีเฟรชจากคลาวด์</button>
+      <button class="btn" id="signOutBtn">ออกจากระบบ</button>
+    </div>
+  </div>
+
+  <div class="top">
+    <div>
+      <h1>📊 Sales Analyst Dashboard</h1>
+      <div class="sub" id="asof">ยังไม่มีข้อมูล — อัปโหลดไฟล์เพื่อเริ่มต้น</div>
+    </div>
+    <div class="toolbar">
+      <input type="file" id="file" accept=".xlsx,.xls,.csv" class="hide">
+      <button class="btn primary" id="uploadBtn">⬆️ อัปโหลดไฟล์ยอดขาย</button>
+      <input type="file" id="stockFile" accept=".xlsx,.xls,.csv" class="hide">
+      <button class="btn hide" id="uploadStockBtn">📦 อัปโหลดไฟล์สต็อก</button>
+      <button class="btn hide" id="downloadTargetBtn">📄 ดาวน์โหลด Template เป้าหมาย</button>
+      <input type="file" id="targetFile" accept=".xlsx,.xls,.csv" class="hide">
+      <button class="btn hide" id="uploadTargetBtn">🎯 อัปโหลดไฟล์เป้าหมาย</button>
+      <button class="btn hide" id="exportBtn">🖼️ บันทึกรูป</button>
+      <button class="btn hide" id="clearBtn">🗑️ ล้างข้อมูล</button>
+    </div>
+  </div>
+
+  <!-- EMPTY STATE -->
+  <div class="panel" id="emptyState">
+    <div class="drop" id="drop">
+      <div class="empty">
+        <div class="big">📈</div>
+        <div style="font-size:17px;font-weight:800;color:var(--text)">ลากไฟล์ Excel มาวาง หรือกดเพื่อเลือกไฟล์</div>
+        <div style="margin-top:8px">รองรับ .xlsx / .xls / .csv ที่ export จาก SharePoint — ระบบจะหา sheet ยอดขายและจับคู่คอลัมน์ให้อัตโนมัติ</div>
+        <div style="margin-top:14px"><span class="pill">ประมวลผลในเครื่องคุณ 100% • ข้อมูลไม่ถูกส่งออกไปไหน</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="dash" class="hide">
+    <div class="warnbar hide" id="warnbar"></div>
+
+    <div class="pagenav" id="pagenav">
+      <button data-page="sales" class="active">📊 ยอดขาย (Sales)</button>
+      <button data-page="stock">📦 สต็อก &amp; Aging (Stock)</button>
+    </div>
+
+    <div class="panel">
+      <div class="seg" id="seg">
+        <button data-v="daily">รายวัน (Daily)</button>
+        <button data-v="mtd">เดือนนี้ (MTD)</button>
+        <button data-v="ytd" class="active">ปีนี้ (YTD)</button>
+        <button data-v="custom">ช่วงเอง (Custom)</button>
+      </div>
+      <div class="filters" id="filters">
+        <div class="fld" id="refDateFld"><label>ณ วันที่ (as of)</label><input type="date" id="refDate"></div>
+        <div class="fld hide" id="rangeFromFld"><label>จากวันที่</label><input type="date" id="rangeFrom"></div>
+        <div class="fld hide" id="rangeToFld"><label>ถึงวันที่</label><input type="date" id="rangeTo"></div>
+      </div>
+    </div>
+
+    <div id="pageSales">
+
+    <div class="kpis" id="kpis"></div>
+
+    <div class="panel" id="healthPanel" style="margin-top:12px">
+      <div class="chart-title" style="margin-bottom:2px">🩺 Sales Health</div>
+      <div class="chart-note" id="healthNote" style="margin-bottom:12px"></div>
+      <div class="kpis" id="healthCards" style="grid-template-columns:repeat(3,1fr)"></div>
+    </div>
+
+    <div class="panel" style="margin-top:12px">
+      <div class="chart-title" id="trendTitle">แนวโน้มยอดขาย</div>
+      <div class="chart-note" id="trendNote"></div>
+      <div class="canh"><canvas id="trendChart"></canvas></div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <div class="chart-title" id="channelTitle">สัดส่วนตามหมวดสินค้า (Subclass)</div>
+        <div class="chart-note" id="channelNote">Product Subclass — Netsale (Excl VAT)</div>
+        <div class="canh sm"><canvas id="channelChart"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="chart-title" id="catTitle">ยอดขายราย Store Type</div>
+        <div class="chart-note" id="catNote">ประเภทร้าน — Netsale (Excl VAT)</div>
+        <div class="canh sm"><canvas id="catChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="chart-title" style="margin-bottom:10px">🏆 Top สินค้า (ตามยอดขายในช่วงที่เลือก)</div>
+      <div class="tbl-scroll">
+        <table id="topTbl">
+          <thead><tr>
+            <th>รุ่นสินค้า (ModelName)</th><th>ยอดขาย ฿</th><th>ชิ้น</th>
+            <th>GP%</th><th>สัดส่วน</th><th>YoY</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel" id="promoPanel">
+      <div class="chart-title" style="margin-bottom:2px">🎯 Promotion Tracking</div>
+      <div class="chart-note" id="promoNote" style="margin-bottom:12px"></div>
+      <div class="kpis" id="promoKpis" style="margin-bottom:14px"></div>
+      <div class="tbl-scroll">
+        <table id="promoTbl">
+          <thead><tr>
+            <th>โปรโมชั่น</th><th>ยอดขาย ฿</th><th>ชิ้น</th><th>บิล</th>
+            <th>ส่วนลดรวม</th><th>ส่วนลด %</th><th>สัดส่วน</th><th>YoY</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="chart-title" style="margin-bottom:2px">🏬 Store Performance</div>
+      <div class="chart-note" id="storePerfNote" style="margin-bottom:10px"></div>
+      <div class="tbl-scroll">
+        <table id="storePerfTbl">
+          <thead><tr>
+            <th>สาขา</th><th>ยอดขาย ฿</th><th>ยอดขาย LY</th><th>YoY %</th><th>ชิ้น</th>
+            <th>ST %</th><th>Stock</th><th>MOH</th><th>Sales/Day</th><th>เป้าหมาย</th><th>% เป้าหมาย</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="sale-day-note">คลิกหัวคอลัมน์เพื่อจัดเรียง • ST %, Stock, MOH ต้องอัปโหลดไฟล์สต็อกก่อน (ไม่มีจะขึ้น "—") • ST % = ขาย 90 วัน ÷ (ขาย 90 วัน + สต็อก) รายสาขา • MOH = สต็อก ÷ (ขาย 90 วัน ÷ 3) • Sales/Day = ยอดขายในช่วง ÷ จำนวนวันในช่วง • เป้าหมาย = ผลรวมเป้ารายเดือนของสาขา (MTD = เดือนนี้, YTD = ม.ค.–เดือนปัจจุบัน, Daily/Custom = "—") • สี % เป้าหมาย: ≥100% เขียว, 90–99% เหลือง, <90% แดง</div>
+    </div>
+
+    <div class="panel">
+      <div class="chart-title" style="margin-bottom:2px">🏪 ยอดขายและ Retail KPI รายสาขา</div>
+      <div class="chart-note" id="storeNote" style="margin-bottom:10px"></div>
+
+      <div class="subhead">สรุปโดยรวม และตามประเภทร้าน (Store Type)</div>
+      <div class="tbl-scroll" style="margin-bottom:16px">
+        <table id="storeTypeTbl">
+          <thead><tr>
+            <th>ประเภทร้าน</th><th>จำนวนสาขา</th><th>ยอดขาย ฿</th><th>ชิ้น</th><th>บิล</th>
+            <th>ATV</th><th>UPT</th><th>ASP</th><th class="rateCol">ยอด/วัน</th><th>พยากรณ์สิ้นเดือน</th><th>MoM</th><th>YoY</th><th>เป้าหมาย (เดือนนี้)</th><th>% เป้าหมาย</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="subhead">รายละเอียดตามสาขา</div>
+      <div class="tbl-scroll">
+        <table id="storeTbl">
+          <thead><tr>
+            <th>สาขา</th><th>ประเภท</th><th>ยอดขาย ฿</th><th>ชิ้น</th><th>บิล</th>
+            <th>ATV</th><th>UPT</th><th>ASP</th><th class="rateCol">ยอด/วัน</th><th>พยากรณ์สิ้นเดือน</th><th>MoM</th><th>YoY</th><th>เป้าหมาย (เดือนนี้)</th><th>% เป้าหมาย</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="sale-day-note">ตารางนี้เปลี่ยนตามแท็บ Daily/MTD/YTD ด้านบน • ATV = ยอดขาย/บิล • UPT = ชิ้น/บิล • ASP = ยอดขาย/ชิ้น • ยอด/วัน = ยอดขายในช่วง ÷ จำนวนวันในช่วง (แท็บ YTD จะเป็น ยอด/เดือน = ÷ จำนวนเดือนที่ผ่านมา) • MoM/YoY เทียบช่วงเดียวกันของเดือน/ปีก่อน (MoM ไม่แสดงในแท็บ YTD) • พยากรณ์สิ้นเดือน และ เป้าหมาย/%เป้าหมาย เป็นค่ารายเดือน จะแสดงเฉพาะแท็บ MTD (แท็บอื่นขึ้น "—") • ยังไม่ได้อัปโหลดไฟล์เป้าหมายจะแสดง "—"</div>
+    </div>
+
+    </div><!-- /#pageSales -->
+
+    <div id="pageStock" class="hide">
+
+    <div class="panel" id="stockPanel">
+      <div class="chart-title" style="margin-bottom:2px">📦 Stock &amp; Sell-Through</div>
+      <div class="chart-note" id="stockNote" style="margin-bottom:12px"></div>
+
+      <div id="stockEmpty">
+        <div class="empty" style="padding:20px 8px">ยังไม่ได้อัปโหลดไฟล์สต็อก — กด "📦 อัปโหลดไฟล์สต็อก" ด้านบนเพื่อเริ่มวิเคราะห์ Sell-Through, Weeks of Cover และ ABC Analysis</div>
+      </div>
+
+      <div id="stockBody" class="hide">
+        <div class="kpis" id="stockKpis" style="margin-bottom:16px"></div>
+
+        <div class="subhead">Stock, Stock Cost และ MOH รายสาขา</div>
+        <div class="tbl-scroll" style="margin-bottom:16px">
+          <table id="stockStoreTbl">
+            <thead><tr>
+              <th>สาขา</th><th>Stock (ชิ้น)</th><th>Stock Cost</th><th>ขาย/เดือน (เฉลี่ย)</th><th>MOH (เดือน)</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="sale-day-note" style="margin-bottom:16px">MOH (Months On Hand) = Stock ÷ ยอดขายเฉลี่ย/เดือน (ยอดขาย 90 วันล่าสุด ÷ 3) — สูง = สต็อกเหลือหลายเดือน (ขายช้า), ต่ำ = สต็อกจะหมดเร็ว</div>
+
+        <div class="subhead">ABC Analysis (ตามมูลค่าขาย 90 วันล่าสุด)</div>
+        <div class="kpis" id="abcKpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px"></div>
+
+        <div class="subhead">⚠️ สินค้าต้องจับตา (ใกล้หมด / ขายช้า-ค้างสต็อก)</div>
+        <div class="tbl-scroll" style="margin-bottom:16px">
+          <table id="alertTbl">
+            <thead><tr>
+              <th class="prodCol">สินค้า</th><th>หมวด</th><th>สถานะ</th><th>สต็อกคงเหลือ</th><th>มูลค่าสต็อก</th>
+              <th>ขาย 90 วัน</th><th>Sell-Through</th><th>ยอดขาย/สัปดาห์</th><th>Weeks of Cover</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="subhead">รายละเอียดสต็อกทั้งหมด</div>
+        <div class="tbl-scroll">
+          <table id="stockTbl">
+            <thead><tr>
+              <th class="prodCol">สินค้า</th><th>หมวด</th><th>ABC</th><th>สถานะ</th><th>สต็อกคงเหลือ</th><th>มูลค่าสต็อก</th>
+              <th>ขาย 90 วัน</th><th>Sell-Through</th><th>ยอดขาย/สัปดาห์</th><th>Weeks of Cover</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="sale-day-note">Sell-Through % = ขาย 90 วันล่าสุด ÷ (ขาย 90 วันล่าสุด + สต็อกคงเหลือ) • Weeks of Cover = สต็อกคงเหลือ ÷ ยอดขายเฉลี่ย/สัปดาห์ (เฉลี่ย 8 สัปดาห์ล่าสุด) • คำนวณ ณ วันที่สแนปช็อตสต็อก ไม่ขึ้นกับแท็บ Daily/MTD/YTD แต่ขึ้นกับตัวกรอง แบรนด์/หมวดสินค้า/สาขา/ประเภทร้าน ด้านบน (ตัวกรองช่องทาง Channel ไม่มีผลกับสต็อก เพราะสต็อกเป็นยอดคงคลังต่อสาขา ไม่ได้แยกตามช่องทางขาย)</div>
+      </div>
+    </div>
+
+    </div><!-- /#pageStock -->
+
+    <div class="foot" id="foot"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+<script type="module">
+  // Firebase sync — lets the same uploaded data show up on any signed-in device (e.g. iPad),
+  // not just the browser it was uploaded from. Module scripts always run after the document has
+  // parsed (deferred by spec, regardless of position), so by the time this runs the classic
+  // <script> below has already defined window.onFirebaseAuthChange for it to call into.
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+    from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+  import { getFirestore, doc, getDoc, setDoc, deleteDoc, writeBatch }
+    from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBzxPV5WOLcE-IjB3iG9lULmeefV1N8Cd4",
+    authDomain: "sale-dashboard-fb098.firebaseapp.com",
+    projectId: "sale-dashboard-fb098",
+    storageBucket: "sale-dashboard-fb098.firebasestorage.app",
+    messagingSenderId: "45415828920",
+    appId: "1:45415828920:web:e27ff0e6414885aa8f534d"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const provider = new GoogleAuthProvider();
+
+  window.fb = {
+    signIn: () => signInWithPopup(auth, provider).catch(err => alert('เข้าสู่ระบบไม่สำเร็จ: ' + err.message)),
+    signOutUser: () => signOut(auth),
+    db, doc, getDoc, setDoc, deleteDoc, writeBatch
+  };
+
+  onAuthStateChanged(auth, user => { if (window.onFirebaseAuthChange) window.onFirebaseAuthChange(user); });
+</script>
+<script>
+"use strict";
+
+/* ---------- column aliases (flexible mapping) ---------- */
+const ALIAS = {
+  date:   ['Sale_Date','SaleDate','Date','วันที่'],
+  qty:    ['Sold_Qty','Qty','Quantity','จำนวน'],
+  net:    ['Netsale_ExcVAT','Netsale_IncVAT','NetSale','Net_Sales','Sales','ยอดขาย'],
+  cogs:   ['COGS','Cost','Cost_Amt'],
+  margin: ['Margin_Value','GP','Gross_Profit','Margin'],
+  source: ['Source','Channel','ช่องทาง'],
+  brand:  ['Division Code','Brand','แบรนด์'],
+  subcls: ['Product Subclass','Subclass','Sub_Class'],
+  store:  ['Store_Code','StoreCode','Store'],
+  storeN: ['Store_Name','StoreName'],
+  storeT: ['Store.Type','Store_Type','StoreType'],
+  billCnt:['Bill Count','BillCount','Bill_Count'],
+  model:  ['ModelName','Model_Name','Model','Product_Name','ProductName'],
+  gdno:   ['GDNO','Style','StyleCode','SKU'],
+  rcpt:   ['Receipt_No','ReceiptNo','Bill_No','Invoice'],
+  coll:   ['Current Collection','Collection'],
+  promoCode: ['Promotion_Code','PromotionCode'],
+  promoName: ['Promotion_Name','PromotionName'],
+  discAmt:   ['Discount_Value','Discount_Amt'],
+  // aging + embedded stock snapshot — these live on the Source=STOCK rows of the sales export
+  flagO:     ['Flag_O','FlagO','Aging_Flag','AgingFlag'],
+  stockQty:  ['Stock_Qty','StockQty'],
+  stockAmt:  ['Stock_Amount','StockAmount'],
+  stockCost: ['Cost_Amt_Stock','Cost_Amount_Stock','Stock_Cost_Amt']
+};
+const NEED = ['date','net']; // minimum required to run
+const STOCK_SOURCE = 'STOCK'; // rows with this Source are inventory snapshots, not sales — excluded here
+
+/* ---------- aging flag (Flag_O) ---------- */
+// Flag_O marks how long an item has been unsellable in a store: W=120d, N=150d, O=180d, <O>=360d.
+// AGING_ORDER ranks severity so, when the same store+SKU appears on several rows with different
+// flags, we keep the worst one.
+const AGING_LABEL = {W:'W · 120 วัน', N:'N · 150 วัน', O:'O · 180 วัน', '<O>':'<O> · 360 วัน'};
+const AGING_ORDER = {W:1, N:2, O:3, '<O>':4};
+function normAgingFlag(v){
+  let s=String(v==null?'':v).trim().toUpperCase().replace(/\s+/g,'');
+  if(s==='<0>') s='<O>';           // OCR/typo: zero instead of letter O
+  return AGING_ORDER[s] ? s : '';
+}
+
+/* ---------- multi-select filter definitions ---------- */
+// get(r) extracts the value a filter matches on
+const FILTER_DEFS = [
+  {key:'brand',     label:'แบรนด์',                 get:r=>r.br},
+  {key:'source',    label:'ช่องทาง',                get:r=>r.src},
+  {key:'storeType', label:'ประเภทร้าน',             get:r=>r.stp},
+  {key:'subclass',  label:'หมวดสินค้า (Subclass)',  get:r=>r.sc},
+  {key:'store',     label:'สาขา',                   get:r=>r.st}
+];
+
+const S = { rows:[], refDate:null, rangeFrom:null, rangeTo:null, view:'ytd', page:'sales', filters:{}, charts:{}, netLabel:'Netsale (Excl VAT)', stockRows:[], stockAsOf:null, targets:{}, agingRows:[], sort:{}, hasBillCount:false };
+let cloudUser=null;
+FILTER_DEFS.forEach(f=>S.filters[f.key]=new Set());
+const $ = s => document.querySelector(s);
+const CATCOLORS = ['#2563eb','#16a34a','#f59e0b','#db2777','#7c3aed','#0891b2','#dc2626','#65a30d','#9ca3af'];
+const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- formatting ---------- */
+const nf0 = new Intl.NumberFormat('en-US',{maximumFractionDigits:0});
+const nf1 = new Intl.NumberFormat('en-US',{maximumFractionDigits:1});
+const baht = v => '฿'+nf0.format(Math.round(v||0));
+function compact(v){ v=v||0; const a=Math.abs(v);
+  if(a>=1e9)return '฿'+nf1.format(v/1e9)+'B';
+  if(a>=1e6)return '฿'+nf1.format(v/1e6)+'M';
+  if(a>=1e3)return '฿'+nf1.format(v/1e3)+'K';
+  return '฿'+nf0.format(v); }
+function pct(v){ return (v>=0?'+':'')+nf1.format(v)+'%'; }
+function deltaHTML(cur,prev,label){
+  const pfx=label?label+' ':'';
+  if(prev===0||prev==null){ return cur>0?`<span class="delta up">${pfx}ใหม่</span>`:`<span class="delta flat">${pfx}—</span>`; }
+  const d=(cur-prev)/prev*100;
+  const cls=d>0.05?'up':d<-0.05?'down':'flat';
+  const arrow=d>0.05?'▲':d<-0.05?'▼':'▬';
+  return `<span class="delta ${cls}">${pfx}${arrow} ${pct(d)}</span>`;
+}
+const theme = () => window.matchMedia('(prefers-color-scheme:dark)').matches;
+const axisColor = () => theme()?'#94a3b8':'#6b7280';
+const gridColor = () => theme()?'#23304633':'#e5e7eb';
+
+/* ---------- date helpers ---------- */
+const iso = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+// SheetJS decodes date-only Excel cells to a Date built from local calendar components, but under
+// some UTC offsets (e.g. UTC+7) the conversion lands a few seconds short of local midnight —
+// enough to read as the previous day. Snap to the nearest UTC day boundary before extracting the
+// calendar date so this sub-second drift can't shift the day, in any viewer's timezone.
+const snapToDay = d => { const s=new Date(Math.round(d.getTime()/86400000)*86400000); return new Date(s.getUTCFullYear(), s.getUTCMonth(), s.getUTCDate()); };
+const parseDate = v => {
+  if(v instanceof Date) return isNaN(v)?null:snapToDay(v);
+  if(typeof v==='number'){ const o=XLSX.SSF.parse_date_code(v); return o?new Date(o.y,o.m-1,o.d):null; }
+  if(typeof v==='string'){ const d=new Date(v.replace(/\//g,'-')); return isNaN(d)?null:snapToDay(d); }
+  return null;
+};
+const shiftYear = (d,n) => new Date(d.getFullYear()+n, d.getMonth(), d.getDate());
+// shift by n months, clamping the day into the target month (e.g. Mar 31 - 1 month -> Feb 28/29)
+const addMonthsClamp = (d,n) => {
+  const total=d.getFullYear()*12+d.getMonth()+n;
+  const y=Math.floor(total/12), m=((total%12)+12)%12;
+  const daysInTarget=new Date(y,m+1,0).getDate();
+  return new Date(y,m,Math.min(d.getDate(),daysInTarget));
+};
+const dayKey = d => d.getFullYear()*10000+(d.getMonth()+1)*100+d.getDate();
+// Stock file dates come as plain "DD/MM/YYYY" text (not Excel date cells), so parse the
+// components directly rather than going through Date() string parsing, which would assume M/D/Y.
+const parseDMY = v => {
+  const m=String(v||'').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(!m) return null;
+  const d=new Date(+m[3], +m[2]-1, +m[1]);
+  return isNaN(d)?null:d;
+};
+
+/* ---------- parse workbook ---------- */
+function pickSheet(wb){
+  let best=null,bestScore=-1;
+  for(const name of wb.SheetNames){
+    const ws=wb.Sheets[name];
+    const arr=XLSX.utils.sheet_to_json(ws,{header:1,range:0,defval:null});
+    // find a header row within first 8 rows that contains known cols
+    for(let r=0;r<Math.min(8,arr.length);r++){
+      const cells=(arr[r]||[]).map(x=>String(x||'').trim());
+      let score=0;
+      for(const k of ['date','net','qty','model']) if(ALIAS[k].some(a=>cells.includes(a))) score++;
+      if(score>bestScore){ bestScore=score; best={name,headerRow:r}; }
+    }
+  }
+  return bestScore>=2?best:null;
+}
+function mapCols(headers){
+  const hn=headers.map(h=>String(h||'').trim());
+  const map={};
+  // respect alias PRIORITY (first alias in list wins, not first column)
+  for(const k in ALIAS){ for(const a of ALIAS[k]){ const i=hn.indexOf(a); if(i>=0){ map[k]=i; break; } } }
+  return map;
+}
+function parseWorkbook(wb){
+  const pick=pickSheet(wb);
+  if(!pick) throw new Error('ไม่พบ sheet ที่มีคอลัมน์ยอดขาย (ต้องมีอย่างน้อย Sale_Date และ Netsale)');
+  const ws=wb.Sheets[pick.name];
+  const arr=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true,cellDates:true});
+  const headers=arr[pick.headerRow];
+  const map=mapCols(headers);
+  for(const k of NEED) if(map[k]==null) throw new Error('ไม่พบคอลัมน์ที่จำเป็น: '+ALIAS[k][0]);
+  S.netLabel = String(headers[map.net]).includes('Inc')?'Netsale (Incl VAT)':'Netsale (Excl VAT)';
+  // the retailer's own "Bill Count" column is the source of truth for #bills (1 on a bill's main
+  // line, -1 for a return, 0 on extra lines); sum it when present, else fall back to distinct receipts
+  S.hasBillCount = map.billCnt!=null;
+  const get=(row,k)=> map[k]!=null?row[map[k]]:null;
+  const out=[], aging=[]; let skippedStock=0;
+  for(let r=pick.headerRow+1;r<arr.length;r++){
+    const row=arr[r]; if(!row) continue;
+    const src=String(get(row,'source')||'—');
+    if(src.trim().toUpperCase()===STOCK_SOURCE){
+      skippedStock++;
+      // Source=STOCK rows are inventory snapshots, not sales — but they carry the Flag_O aging
+      // marker AND the stock quantity/cost on the same row, so capture the flagged ones for the
+      // aging (dead-stock) report instead of discarding them
+      const flag=normAgingFlag(get(row,'flagO'));
+      if(flag){
+        const store=String(get(row,'store')||'—');
+        aging.push({
+          st:store, stn:String(get(row,'storeN')||store||'—'),
+          gd:String(get(row,'gdno')||'—'), br:String(get(row,'brand')||'—'),
+          sc:String(get(row,'subcls')||'—'), stp:String(get(row,'storeT')||'—'),
+          flag, sqty:Number(get(row,'stockQty'))||0,
+          samt:Number(get(row,'stockAmt'))||0, scost:Number(get(row,'stockCost'))||0
+        });
+      }
+      continue;
+    }
+    const d=parseDate(get(row,'date')); if(!d) continue;
+    const net=Number(get(row,'net'))||0;
+    out.push({
+      d, k:dayKey(d), y:d.getFullYear(), m:d.getMonth()+1,
+      net, qty:Number(get(row,'qty'))||0,
+      cogs:Number(get(row,'cogs'))||0, gp:Number(get(row,'margin'))||0,
+      src, br:String(get(row,'brand')||'—'),
+      sc:String(get(row,'subcls')||'—'), st:String(get(row,'store')||'—'),
+      stn:String(get(row,'storeN')||get(row,'store')||'—'),
+      stp:String(get(row,'storeT')||'—'),
+      md:String(get(row,'model')||'—'), gd:String(get(row,'gdno')||'—'),
+      rc:String(get(row,'rcpt')||''), col:String(get(row,'coll')||'—'),
+      pc:String(get(row,'promoCode')||''), pn:String(get(row,'promoName')||''),
+      da:Number(get(row,'discAmt'))||0,
+      bc:Number(get(row,'billCnt'))||0
+    });
+  }
+  if(!out.length) throw new Error('อ่านข้อมูลได้ 0 แถว — ตรวจสอบรูปแบบวันที่ในไฟล์');
+  out._skippedStock = skippedStock;
+  out._aging = aging;
+  return out;
+}
+
+/* ---------- parse stock card workbook ---------- */
+const STOCK_ALIAS = {
+  date:   ['Stock_Date','StockDate'],
+  store:  ['Store','Store_Code','StoreCode'],
+  gdno:   ['GDNO','Style','StyleCode','SKU'],
+  model:  ['ModelName','Model_Name','Model'],
+  brand:  ['Division Code','Brand','แบรนด์'],
+  subcls: ['Product Subclass','Subclass','Sub_Class'],
+  qty:    ['Stock available Qty','Stock_Qty','StockQty'],
+  costUnit:  ['Cost/Unit','Cost_Per_Unit'],
+  retail:    ['Retail Price','Retail_Price'],
+  stockAmt:  ['Stock Amount (Current Price)','Stock_Amount'],
+  costAmt:   ['Cost Amount','Cost_Amt_Stock']
+};
+const STOCK_NEED=['date','store','gdno','qty'];
+function pickStockSheet(wb){
+  let best=null,bestScore=-1;
+  for(const name of wb.SheetNames){
+    const ws=wb.Sheets[name];
+    const arr=XLSX.utils.sheet_to_json(ws,{header:1,range:0,defval:null});
+    for(let r=0;r<Math.min(8,arr.length);r++){
+      const cells=(arr[r]||[]).map(x=>String(x||'').trim());
+      let score=0;
+      for(const k of STOCK_NEED) if(STOCK_ALIAS[k].some(a=>cells.includes(a))) score++;
+      if(score>bestScore){ bestScore=score; best={name,headerRow:r}; }
+    }
+  }
+  return bestScore>=3?best:null;
+}
+function mapStockCols(headers){
+  const hn=headers.map(h=>String(h||'').trim());
+  const map={};
+  for(const k in STOCK_ALIAS){ for(const a of STOCK_ALIAS[k]){ const i=hn.indexOf(a); if(i>=0){ map[k]=i; break; } } }
+  return map;
+}
+function parseStockWorkbook(wb){
+  const pick=pickStockSheet(wb);
+  if(!pick) throw new Error('ไม่พบ sheet สต็อก (ต้องมีอย่างน้อย Stock_Date, Store, GDNO, Stock available Qty)');
+  const ws=wb.Sheets[pick.name];
+  const arr=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+  const headers=arr[pick.headerRow];
+  const map=mapStockCols(headers);
+  for(const k of STOCK_NEED) if(map[k]==null) throw new Error('ไม่พบคอลัมน์สต็อกที่จำเป็น: '+STOCK_ALIAS[k][0]);
+  const get=(row,k)=> map[k]!=null?row[map[k]]:null;
+  const out=[]; let asOf=null;
+  for(let r=pick.headerRow+1;r<arr.length;r++){
+    const row=arr[r]; if(!row) continue;
+    const d=parseDMY(get(row,'date')); if(!d) continue;
+    if(!asOf||d>asOf) asOf=d;
+    out.push({
+      d, st:String(get(row,'store')||'—'), gd:String(get(row,'gdno')||'—'),
+      md:String(get(row,'model')||'—'), br:String(get(row,'brand')||'—'),
+      sc:String(get(row,'subcls')||'—'), qty:Number(get(row,'qty'))||0,
+      costUnit:Number(get(row,'costUnit'))||0, retail:Number(get(row,'retail'))||0,
+      stockAmt:Number(get(row,'stockAmt'))||0, costAmt:Number(get(row,'costAmt'))||0
+    });
+  }
+  if(!out.length) throw new Error('อ่านข้อมูลสต็อกได้ 0 แถว — ตรวจสอบรูปแบบวันที่ในไฟล์ (ต้องเป็น DD/MM/YYYY)');
+  out._asOf=asOf;
+  return out;
+}
+
+/* ---------- target template: download + parse ---------- */
+const TARGET_STORE_ALIAS=['Store_Code','Store','StoreCode'];
+const MONTH_COL_RE=/^\d{4}-(0[1-9]|1[0-2])$/;
+function downloadTargetTemplate(){
+  const year=S.refDate.getFullYear();
+  const months=[]; for(let m=1;m<=12;m++) months.push(year+'-'+String(m).padStart(2,'0'));
+  const storeNameMap={}; S.rows.forEach(r=>{ if(!storeNameMap[r.st]) storeNameMap[r.st]=r.stn; });
+  const stores=[...new Set(S.rows.map(r=>r.st))].sort();
+  const header=['Store_Code','Store_Name',...months];
+  const data=[header, ...stores.map(code=>[code, storeNameMap[code]||code, ...months.map(()=>null)])];
+  const ws=XLSX.utils.aoa_to_sheet(data);
+  ws['!cols']=[{wch:12},{wch:32},...months.map(()=>({wch:12}))];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Target');
+  XLSX.writeFile(wb, 'sales-target-template-'+year+'.xlsx');
+}
+function parseTargetWorkbook(wb){
+  let pick=null;
+  for(const name of wb.SheetNames){
+    const ws=wb.Sheets[name];
+    const arr=XLSX.utils.sheet_to_json(ws,{header:1,range:0,defval:null});
+    for(let r=0;r<Math.min(5,arr.length);r++){
+      const cells=(arr[r]||[]).map(x=>String(x||'').trim());
+      const hasStore=cells.some(c=>TARGET_STORE_ALIAS.includes(c));
+      const hasMonth=cells.some(c=>MONTH_COL_RE.test(c));
+      if(hasStore&&hasMonth){ pick={name,headerRow:r}; break; }
+    }
+    if(pick) break;
+  }
+  if(!pick) throw new Error('ไม่พบคอลัมน์ Store_Code และคอลัมน์เดือน (รูปแบบ YYYY-MM เช่น 2026-01) ในไฟล์เป้าหมาย');
+  const ws=wb.Sheets[pick.name];
+  const arr=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+  const headers=arr[pick.headerRow].map(h=>String(h||'').trim());
+  const storeIdx=headers.findIndex(h=>TARGET_STORE_ALIAS.includes(h));
+  const monthCols=[]; headers.forEach((h,i)=>{ if(MONTH_COL_RE.test(h)) monthCols.push({key:h,idx:i}); });
+  const targets={}; let n=0;
+  for(let r=pick.headerRow+1;r<arr.length;r++){
+    const row=arr[r]; if(!row) continue;
+    const code=String(row[storeIdx]||'').trim(); if(!code) continue;
+    for(const mc of monthCols){
+      const v=Number(row[mc.idx]);
+      if(v>0){ targets[code+'|'+mc.key]=v; n++; }
+    }
+  }
+  if(!n) throw new Error('อ่านค่าเป้าหมายได้ 0 ค่า — ตรวจสอบว่าใส่ตัวเลขในคอลัมน์เดือน (YYYY-MM) แล้ว');
+  return targets;
+}
+
+/* ---------- gzip compression (shrinks payload ~9x for both localStorage and Firestore) ---------- */
+// large Uint8Array -> base64 without blowing the call-stack, and back
+function u8ToB64(u8){ let s=''; const CH=0x8000; for(let i=0;i<u8.length;i+=CH) s+=String.fromCharCode.apply(null,u8.subarray(i,i+CH)); return btoa(s); }
+function b64ToU8(b64){ const bin=atob(b64); const u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i); return u8; }
+function gzToB64(str){ return u8ToB64(pako.gzip(str)); }
+function b64ToStr(b64){ return pako.ungzip(b64ToU8(b64), {to:'string'}); }
+const hasPako = () => typeof pako!=='undefined';
+
+/* ---------- persistence (columnar, quota-safe) ---------- */
+const LSKEY='salesdash_v3';
+// shared row <-> compact-array codecs, used by both localStorage and Firestore sync so the two
+// storage layers can never silently drift apart in field order
+const encodeSalesRow = r=>[iso(r.d),r.net,r.qty,r.cogs,r.gp,r.src,r.br,r.sc,r.st,r.stn,r.stp,r.md,r.gd,r.rc,r.col,r.pc,r.pn,r.da,r.bc||0];
+const decodeSalesRow = a=>{ const d=parseDate(a[0]); return {d,k:dayKey(d),y:d.getFullYear(),m:d.getMonth()+1,
+  net:a[1],qty:a[2],cogs:a[3],gp:a[4],src:a[5],br:a[6],sc:a[7],st:a[8],stn:a[9],stp:a[10],md:a[11],gd:a[12],rc:a[13],col:a[14],pc:a[15]||'',pn:a[16]||'',da:a[17]||0,bc:a[18]||0}; };
+const encodeStockRow = r=>[r.st,r.gd,r.md,r.br,r.sc,r.qty,r.costUnit,r.retail,r.stockAmt,r.costAmt];
+const decodeStockRow = a=>({st:a[0],gd:a[1],md:a[2],br:a[3],sc:a[4],qty:a[5],costUnit:a[6],retail:a[7],stockAmt:a[8],costAmt:a[9]});
+const encodeAgingRow = r=>[r.st,r.stn,r.gd,r.br,r.sc,r.stp,r.flag,r.sqty,r.samt,r.scost];
+const decodeAgingRow = a=>({st:a[0],stn:a[1],gd:a[2],br:a[3],sc:a[4],stp:a[5],flag:a[6],sqty:a[7],samt:a[8],scost:a[9]});
+function save(){
+  try{
+    const payload=JSON.stringify({
+      rows:S.rows.map(encodeSalesRow),
+      ref:iso(S.refDate),
+      view:S.view,
+      rangeFrom:S.rangeFrom?iso(S.rangeFrom):null,
+      rangeTo:S.rangeTo?iso(S.rangeTo):null,
+      page:S.page,
+      sort:S.sort,
+      filters:Object.fromEntries(FILTER_DEFS.map(f=>[f.key,[...S.filters[f.key]]])),
+      netLabel:S.netLabel,
+      hasBillCount:S.hasBillCount,
+      stockRows:S.stockRows.map(encodeStockRow),
+      stockAsOf:S.stockAsOf?iso(S.stockAsOf):null,
+      targets:S.targets,
+      agingRows:S.agingRows.map(encodeAgingRow)
+    });
+    // gzip so multi-brand datasets fit the ~5MB localStorage quota (raw JSON can be 10MB+)
+    let toStore=payload;
+    if(hasPako()){ try{ toStore='gz:'+gzToB64(payload); }catch(e){ toStore=payload; } }
+    localStorage.setItem(LSKEY, toStore);
+  }catch(e){ /* quota exceeded even after compression -> session only */ }
+}
+function load(){
+  try{
+    let raw=localStorage.getItem(LSKEY); if(!raw) return false;
+    if(raw.slice(0,3)==='gz:') raw=b64ToStr(raw.slice(3));  // compressed payload (current format)
+    const o=JSON.parse(raw);
+    S.rows=o.rows.map(decodeSalesRow);
+    S.refDate=parseDate(o.ref);
+    if(o.view) S.view=o.view;
+    if(o.rangeFrom) S.rangeFrom=parseDate(o.rangeFrom);
+    if(o.rangeTo) S.rangeTo=parseDate(o.rangeTo);
+    if(o.page) S.page=o.page;
+    if(o.sort) S.sort=o.sort;
+    if(o.netLabel) S.netLabel=o.netLabel;
+    S.hasBillCount=!!o.hasBillCount;
+    if(o.filters){ FILTER_DEFS.forEach(f=>{ S.filters[f.key]=new Set(o.filters[f.key]||[]); }); }
+    if(o.stockRows){
+      S.stockRows=o.stockRows.map(decodeStockRow);
+      S.stockAsOf=o.stockAsOf?parseDate(o.stockAsOf):null;
+    }
+    if(o.agingRows) S.agingRows=o.agingRows.map(decodeAgingRow);
+    if(o.targets) S.targets=o.targets;
+    return S.rows.length>0;
+  }catch(e){ return false; }
+}
+
+/* ---------- Firebase cloud sync (optional — only active once signed in) ---------- */
+// The whole collection is encoded to one JSON string, gzipped, base64'd, then split into
+// <900KB string pieces stored one per doc — this keeps every doc well under Firestore's 1MiB
+// limit even for big multi-brand datasets (raw JSON of 10MB+ compresses to ~1MB). Older
+// uncompressed docs (meta without gz flag) are still read for backward compatibility.
+const CLOUD_PIECE=900000;
+function setSyncStatus(msg){ const el=$('#syncStatus'); if(el) el.textContent=msg; }
+async function pushCollectionToCloud(rows, colName, encodeRow, extraMeta){
+  const {db,doc,getDoc,writeBatch}=window.fb;
+  const metaRef=doc(db,'company/main/meta',colName);
+  const oldMetaSnap=await getDoc(metaRef);
+  const oldCount=oldMetaSnap.exists()?(oldMetaSnap.data().chunkCount||0):0;
+  const b64=gzToB64(JSON.stringify(rows.map(encodeRow)));
+  const chunks=[]; for(let i=0;i<b64.length;i+=CLOUD_PIECE) chunks.push(b64.slice(i,i+CLOUD_PIECE));
+  let batch=writeBatch(db), ops=0;
+  const flush=async()=>{ if(ops>0){ await batch.commit(); batch=writeBatch(db); ops=0; } };
+  for(let i=0;i<chunks.length;i++){
+    batch.set(doc(db,'company/main/'+colName,String(i)),{data:chunks[i],gz:true}); ops++;
+    if(ops>=400) await flush();
+  }
+  for(let i=chunks.length;i<oldCount;i++){ batch.delete(doc(db,'company/main/'+colName,String(i))); ops++; if(ops>=400) await flush(); }
+  batch.set(metaRef, Object.assign({chunkCount:chunks.length,gz:true,updatedAt:Date.now(),updatedBy:cloudUser?cloudUser.email:''}, extraMeta||{}));
+  ops++;
+  await flush();
+}
+async function pullCollectionFromCloud(colName){
+  const {db,doc,getDoc}=window.fb;
+  const metaSnap=await getDoc(doc(db,'company/main/meta',colName));
+  if(!metaSnap.exists()) return null;
+  const meta=metaSnap.data();
+  const snaps=await Promise.all(Array.from({length:meta.chunkCount},(_,i)=>getDoc(doc(db,'company/main/'+colName,String(i)))));
+  let rows;
+  if(meta.gz){
+    let b64=''; snaps.forEach(s=>{ if(s.exists()) b64+=s.data().data; });
+    rows = b64 ? JSON.parse(b64ToStr(b64)) : [];
+  }else{
+    rows=[]; snaps.forEach(s=>{ if(s.exists()) rows.push(...JSON.parse(s.data().data)); }); // legacy uncompressed
+  }
+  return {rows, meta};
+}
+async function syncSalesUp(){
+  if(!cloudUser) return;
+  setSyncStatus('🔄 กำลังซิงค์ยอดขายขึ้นคลาวด์...');
+  try{ await pushCollectionToCloud(S.rows,'sales',encodeSalesRow,{netLabel:S.netLabel,hasBillCount:S.hasBillCount});
+    setSyncStatus('☁️ ซิงค์ยอดขายแล้ว '+new Date().toLocaleTimeString('th-TH'));
+  }catch(err){ setSyncStatus('⚠️ ซิงค์ยอดขายไม่สำเร็จ: '+err.message); }
+}
+async function syncStockUp(){
+  if(!cloudUser) return;
+  setSyncStatus('🔄 กำลังซิงค์สต็อกขึ้นคลาวด์...');
+  try{ await pushCollectionToCloud(S.stockRows,'stock',encodeStockRow,{stockAsOf:S.stockAsOf?iso(S.stockAsOf):null});
+    setSyncStatus('☁️ ซิงค์สต็อกแล้ว '+new Date().toLocaleTimeString('th-TH'));
+  }catch(err){ setSyncStatus('⚠️ ซิงค์สต็อกไม่สำเร็จ: '+err.message); }
+}
+async function syncAgingUp(){
+  if(!cloudUser) return;
+  try{ await pushCollectionToCloud(S.agingRows,'aging',encodeAgingRow,{}); }catch(err){ /* aging is best-effort */ }
+}
+async function syncTargetsUp(){
+  if(!cloudUser) return;
+  setSyncStatus('🔄 กำลังซิงค์เป้าหมายขึ้นคลาวด์...');
+  try{
+    const {db,doc,setDoc}=window.fb;
+    await setDoc(doc(db,'company/main/meta','targets'),{data:S.targets,updatedAt:Date.now(),updatedBy:cloudUser.email});
+    setSyncStatus('☁️ ซิงค์เป้าหมายแล้ว '+new Date().toLocaleTimeString('th-TH'));
+  }catch(err){ setSyncStatus('⚠️ ซิงค์เป้าหมายไม่สำเร็จ: '+err.message); }
+}
+async function pullAllFromCloud(){
+  setSyncStatus('🔄 กำลังโหลดข้อมูลจากคลาวด์...');
+  try{
+    const {db,doc,getDoc}=window.fb;
+    const salesRes=await pullCollectionFromCloud('sales');
+    if(salesRes && salesRes.rows.length){
+      S.rows=salesRes.rows.map(decodeSalesRow);
+      if(salesRes.meta.netLabel) S.netLabel=salesRes.meta.netLabel;
+      S.hasBillCount=!!salesRes.meta.hasBillCount;
+      S.refDate=null;
+      FILTER_DEFS.forEach(f=>S.filters[f.key]=new Set());
+    }
+    const stockRes=await pullCollectionFromCloud('stock');
+    if(stockRes && stockRes.rows.length){
+      S.stockRows=stockRes.rows.map(decodeStockRow);
+      S.stockAsOf=stockRes.meta.stockAsOf?parseDate(stockRes.meta.stockAsOf):null;
+    }
+    const agingRes=await pullCollectionFromCloud('aging');
+    if(agingRes && agingRes.rows.length){ S.agingRows=agingRes.rows.map(decodeAgingRow); }
+    const targetSnap=await getDoc(doc(db,'company/main/meta','targets'));
+    if(targetSnap.exists() && targetSnap.data().data) S.targets=targetSnap.data().data;
+    if(S.rows.length){ showDash(); }
+    save();
+    setSyncStatus(S.rows.length?'☁️ ซิงค์จากคลาวด์แล้ว '+new Date().toLocaleTimeString('th-TH'):'☁️ เข้าสู่ระบบแล้ว — ยังไม่มีข้อมูลในคลาวด์ ลองอัปโหลดไฟล์ได้เลย');
+  }catch(err){ setSyncStatus('⚠️ โหลดจากคลาวด์ไม่สำเร็จ: '+err.message); }
+}
+window.onFirebaseAuthChange=function(user){
+  cloudUser=user;
+  if(user){
+    $('#signInBtn').classList.add('hide');
+    $('#userBox').classList.remove('hide');
+    $('#userEmail').textContent=user.email;
+    // if this device has nothing loaded yet, pull from cloud (the iPad/new-device case).
+    // if it already has local data — e.g. someone uploaded before signing in — ask before
+    // pushing, since that could overwrite data another signed-in device already put up
+    if(!S.rows.length){ pullAllFromCloud(); }
+    else if(confirm('พบข้อมูลในเครื่องนี้อยู่แล้ว ต้องการซิงค์ขึ้นคลาวด์ตอนนี้เลยไหม?\n(ถ้ามีข้อมูลอื่นอยู่บนคลาวด์แล้ว จะถูกเขียนทับด้วยข้อมูลจากเครื่องนี้)')){
+      syncSalesUp(); syncStockUp(); syncTargetsUp(); syncAgingUp();
+    } else {
+      setSyncStatus('☁️ เข้าสู่ระบบแล้ว — การอัปโหลดไฟล์ใหม่จะซิงค์ขึ้นคลาวด์อัตโนมัติ');
+    }
+  } else {
+    $('#signInBtn').classList.remove('hide');
+    $('#userBox').classList.add('hide');
+    setSyncStatus('');
+  }
+};
+
+/* ---------- aggregation ---------- */
+// a row passes when, for every filter with a selection, its value is in that selection (Sets hold
+// string values, matching the checkbox values, so compare via String())
+function passFilters(r){
+  for(const def of FILTER_DEFS){
+    const set=S.filters[def.key];
+    if(set.size && !set.has(String(def.get(r)))) return false;
+  }
+  return true;
+}
+function filtered(){ return S.rows.filter(passFilters); }
+function filteredStock(){
+  const f=S.filters;
+  // stock rows carry no store-type, so map store code -> type from the sales rows when that filter
+  // is active (built only when needed). Channel/source doesn't apply to physical inventory.
+  let stpOf=null;
+  if(f.storeType.size){ stpOf={}; for(const r of S.rows){ if(!stpOf[r.st]) stpOf[r.st]=r.stp; } }
+  return S.stockRows.filter(r=>
+    (!f.brand.size||f.brand.has(r.br)) &&
+    (!f.subclass.size||f.subclass.has(r.sc)) &&
+    (!f.store.size||f.store.has(r.st)) &&
+    (!f.storeType.size||f.storeType.has(stpOf[r.st]))
+  );
+}
+function filteredAging(){
+  const f=S.filters;
+  return S.agingRows.filter(r=>
+    (!f.brand.size||f.brand.has(r.br)) &&
+    (!f.storeType.size||f.storeType.has(r.stp)) &&
+    (!f.subclass.size||f.subclass.has(r.sc)) &&
+    (!f.store.size||f.store.has(r.st))
+  );
+}
+function ranges(){
+  // lm (last month) is meaningful only for Daily/MTD — a "last month" cut for YTD has no
+  // standard definition, so it's omitted (null) there and the KPI cards fall back to YoY only.
+  const ref=S.refDate, y=ref.getFullYear();
+  if(S.view==='custom'){
+    // free from–to range; comparisons shift the whole span by a year (MoM) and a month
+    let a=S.rangeFrom||ref, b=S.rangeTo||ref;
+    if(a>b){ const t=a; a=b; b=t; }
+    return {cur:[a,b], ly:[shiftYear(a,-1),shiftYear(b,-1)], lm:[addMonthsClamp(a,-1),addMonthsClamp(b,-1)]};
+  }
+  if(S.view==='daily'){
+    const lmRef=addMonthsClamp(ref,-1);
+    return {cur:[ref,ref], ly:[shiftYear(ref,-1),shiftYear(ref,-1)], lm:[lmRef,lmRef]};
+  }
+  if(S.view==='mtd'){
+    const s=new Date(y,ref.getMonth(),1);
+    const lmRef=addMonthsClamp(ref,-1), lmStart=new Date(lmRef.getFullYear(),lmRef.getMonth(),1);
+    return {cur:[s,ref], ly:[shiftYear(s,-1),shiftYear(ref,-1)], lm:[lmStart,lmRef]};
+  }
+  const s=new Date(y,0,1); return {cur:[s,ref], ly:[shiftYear(s,-1),shiftYear(ref,-1)], lm:null};
+}
+function inRange(r,a,b){ return r.k>=dayKey(a)&&r.k<=dayKey(b); }
+// #bills from the retailer's Bill Count column (summed) when the file has it, else distinct receipts
+function billsOf(o){ return S.hasBillCount ? (o.billSum||0) : (o.bills?o.bills.size:0); }
+function agg(rows){
+  const o={net:0,qty:0,cogs:0,gp:0,billSum:0,bills:new Set()};
+  for(const r of rows){ o.net+=r.net; o.qty+=r.qty; o.cogs+=r.cogs; o.gp+=r.gp; o.billSum+=r.bc||0; if(r.rc) o.bills.add(r.rc); }
+  o.nbills=billsOf(o); o.asp=o.qty?o.net/o.qty:0; o.gppct=o.net?o.gp/o.net*100:0; o.avgbill=o.nbills>0?o.net/o.nbills:0;
+  o.upt=o.nbills>0?o.qty/o.nbills:0;
+  return o;
+}
+function groupSum(rows,key){ const m={}; for(const r of rows){ m[r[key]]=(m[r[key]]||0)+r.net; } return m; }
+function topN(obj,n){ return Object.entries(obj).sort((a,b)=>b[1]-a[1]).slice(0,n); }
+
+/* ---------- render ---------- */
+function renderKPIs(cur,ly,lm){
+  // metric key -> formatter, used to build both the YoY line (always) and the MoM line (Daily/MTD only)
+  const defs=[
+    {k:'ยอดขาย ('+S.netLabel.replace('Netsale ','')+')', f:'net', fmt:compact},
+    {k:'จำนวนชิ้น', f:'qty', fmt:nf0.format},
+    {k:'กำไรขั้นต้น (GP)', f:'gp', fmt:compact, extra:'GP '+nf1.format(cur.gppct)+'%'},
+    {k:'ราคาขายเฉลี่ย/ชิ้น (ASP)', f:'asp', fmt:compact},
+    {k:'จำนวนบิล', f:'nbills', fmt:nf0.format},
+    {k:'ยอดเฉลี่ย/บิล (ATV)', f:'avgbill', fmt:compact},
+    {k:'UPT (ชิ้น/บิล)', f:'upt', fmt:v=>nf1.format(v)},
+    {k:'ต้นทุนขาย (COGS)', f:'cogs', fmt:compact}
+  ];
+  const valFmt={net:baht,qty:v=>nf0.format(v)+' ชิ้น',gp:baht,asp:baht,nbills:nf0.format,avgbill:baht,upt:v=>nf1.format(v)+' ชิ้น/บิล',cogs:baht};
+  const cards=defs.map(d=>{
+    const v=valFmt[d.f](cur[d.f]);
+    const yoyLine=`<div>ปีก่อน ${d.fmt(ly[d.f])} ${deltaHTML(cur[d.f],ly[d.f],'YoY')}</div>`;
+    const momLine=lm ? `<div>เดือนก่อน ${d.fmt(lm[d.f])} ${deltaHTML(cur[d.f],lm[d.f],'MoM')}</div>` : '';
+    const extra=d.extra?`<div>${d.extra}</div>`:'';
+    return `<div class="kpi"><div class="k">${d.k}</div><div class="v">${v}</div><div class="sub">${extra}${yoyLine}${momLine}</div></div>`;
+  });
+  // Sale-rate card: in YTD (which spans many months) show Sale/Month; otherwise Sale/Day
+  if(S.view==='ytd'){
+    const perMonth = cur._months ? cur.net/cur._months : 0;
+    cards.push(`<div class="kpi"><div class="k">ยอดขาย/เดือน (Sale/Month)</div><div class="v">${baht(perMonth)}</div>
+      <div class="sub"><div>${nf0.format(cur._months||0)} เดือนมียอดขาย</div></div></div>`);
+  }else{
+    const perDayView = cur._days ? cur.net/cur._days : 0;
+    cards.push(`<div class="kpi"><div class="k">ยอดขาย/วัน (Sale/Day)</div><div class="v">${baht(perDayView)}</div>
+      <div class="sub"><div>${nf0.format(cur._days||0)} วันมียอดขาย</div></div></div>`);
+  }
+
+  // Forecast to end of month: current month's run-rate projected to the full month, always based on
+  // refDate's month (MTD ÷ days elapsed × days in month) regardless of the Daily/MTD/YTD toggle
+  const ref=S.refDate, y=ref.getFullYear(), mo=ref.getMonth();
+  const daysInMonth=new Date(y,mo+1,0).getDate(), daysElapsed=ref.getDate();
+  const monthStart=new Date(y,mo,1);
+  const monthNet=filtered().reduce((a,r)=>inRange(r,monthStart,ref)?a+r.net:a,0);
+  const perDayMonth=daysElapsed?monthNet/daysElapsed:0, forecast=perDayMonth*daysInMonth;
+  // enhanced forecast (Feature 6, v1.1.0): remaining days, estimated landing, target, achievement.
+  // The forecast FORMULA is unchanged (MTD ÷ days elapsed × days in month).
+  const remaining=Math.max(0,daysInMonth-daysElapsed);
+  const codesF=new Set(filtered().map(r=>r.st));
+  let monthTargetF=0; codesF.forEach(c=>{ monthTargetF+=S.targets[c+'|'+monthKey(y,mo)]||0; });
+  let tgtLine;
+  if(monthTargetF>0){ const ach=forecast/monthTargetF*100; const cls=ach>=100?'up':ach>=90?'flat':'down';
+    tgtLine=`<div>เป้าเดือน ${compact(monthTargetF)} • สำเร็จ <span class="delta ${cls}">${nf1.format(ach)}%</span></div>`; }
+  else tgtLine='<div>ยังไม่ได้ตั้งเป้าเดือนนี้</div>';
+  cards.push(`<div class="kpi"><div class="k">พยากรณ์สิ้นเดือน (Estimated Landing)</div><div class="v">${baht(forecast)}</div>
+    <div class="sub"><div>เดือน ${mo+1}/${y} • ผ่าน ${daysElapsed}/${daysInMonth} วัน • เหลือ ${remaining} วัน</div><div>ยอดปัจจุบัน ${compact(monthNet)} • /วัน ${compact(perDayMonth)}</div>${tgtLine}</div></div>`);
+  $('#kpis').innerHTML=cards.join('');
+}
+function mkChart(id,cfg){ if(S.charts[id]) S.charts[id].destroy(); S.charts[id]=new Chart($('#'+id),cfg); }
+const baseOpts = () => ({responsive:true,maintainAspectRatio:false,
+  plugins:{legend:{labels:{color:axisColor(),boxWidth:12,font:{size:11}}},
+    tooltip:{callbacks:{label:c=>` ${c.dataset.label||c.label}: ${compact(c.parsed.y??c.parsed)}`}}},
+  scales:{x:{ticks:{color:axisColor(),font:{size:10}},grid:{display:false}},
+    y:{ticks:{color:axisColor(),font:{size:10},callback:v=>compact(v)},grid:{color:gridColor()}}}});
+
+function renderTrend(rowsCur){
+  const ref=S.refDate;
+  if(S.view==='custom'){
+    // daily bars across the chosen from–to span (capped to a sane number of bars)
+    let a=S.rangeFrom||ref, b=S.rangeTo||ref; if(a>b){const t=a;a=b;b=t;}
+    const spanDays=Math.round((b-a)/86400000)+1;
+    const bucket={};
+    for(const r of filtered()){ if(inRange(r,a,b)) bucket[r.k]=(bucket[r.k]||0)+r.net; }
+    const labels=[],ty=[];
+    if(spanDays<=92){
+      for(let i=0;i<spanDays;i++){ const d=new Date(a); d.setDate(a.getDate()+i);
+        labels.push(d.getDate()+'/'+(d.getMonth()+1)); ty.push(bucket[dayKey(d)]||0); }
+    }else{
+      // long span -> bucket by month to keep the chart readable
+      const mb={}; for(const k in bucket){ const s=String(k); const ym=s.slice(0,4)+'-'+s.slice(4,6); mb[ym]=(mb[ym]||0)+bucket[k]; }
+      Object.keys(mb).sort().forEach(ym=>{ labels.push(ym); ty.push(mb[ym]); });
+    }
+    $('#trendTitle').textContent='ยอดขายช่วงที่เลือก';
+    $('#trendNote').textContent=iso(a)+' → '+iso(b)+' • '+S.netLabel+(spanDays>92?' • รวมรายเดือน':' • รายวัน');
+    mkChart('trendChart',{type:'bar',data:{labels,datasets:[{label:'ยอดขาย',data:ty,backgroundColor:CATCOLORS[0],borderRadius:4}]},options:baseOpts()});
+  } else if(S.view==='daily'){
+    // last 30 days ending refDate, with LY line + per-day target pace (Feature 5, v1.1.0)
+    const labels=[],ty=[],lyArr=[],pace=[];
+    const start=new Date(ref); start.setDate(ref.getDate()-29);
+    const bucket={}, bucketLy={};
+    const startLy=shiftYear(start,-1), refLy=shiftYear(ref,-1);
+    for(const r of filtered()){
+      if(inRange(r,start,ref)) bucket[r.k]=(bucket[r.k]||0)+r.net;
+      if(inRange(r,startLy,refLy)) bucketLy[r.k]=(bucketLy[r.k]||0)+r.net;
+    }
+    let anyPace=false;
+    const paceCache={};
+    for(let i=29;i>=0;i--){ const d=new Date(ref); d.setDate(ref.getDate()-i);
+      labels.push(d.getDate()+'/'+(d.getMonth()+1)); ty.push(bucket[dayKey(d)]||0);
+      lyArr.push(bucketLy[dayKey(shiftYear(d,-1))]||0);
+      const mk=d.getFullYear()+'-'+d.getMonth();
+      if(paceCache[mk]===undefined){ const mt=monthTargetForFiltered(d.getFullYear(),d.getMonth()); const dim=new Date(d.getFullYear(),d.getMonth()+1,0).getDate(); paceCache[mk]=mt>0?mt/dim:null; }
+      const pp=paceCache[mk]; pace.push(pp); if(pp!=null) anyPace=true;
+    }
+    const dsDaily=[
+      {type:'bar',label:'ยอดขายจริง',data:ty,backgroundColor:CATCOLORS[0],borderRadius:4},
+      {type:'line',label:'ปีก่อน (LY)',data:lyArr,borderColor:'#9ca3af',borderDash:[5,4],fill:false,tension:.25,pointRadius:0}
+    ];
+    if(anyPace) dsDaily.push({type:'line',label:'เป้าหมาย/วัน (Target Pace)',data:pace,borderColor:'#f59e0b',borderDash:[3,3],fill:false,tension:0,pointRadius:0,spanGaps:true});
+    $('#trendTitle').textContent='ยอดขายรายวัน (30 วันล่าสุด) เทียบปีก่อน';
+    $('#trendNote').textContent='ณ '+iso(ref)+' • '+S.netLabel+' • เส้นเทา = ปีก่อน'+(anyPace?' • เส้นประส้ม = เป้าหมาย/วัน':'');
+    mkChart('trendChart',{data:{labels,datasets:dsDaily},options:baseOpts()});
+  } else if(S.view==='mtd'){
+    // cumulative day-of-month TY vs LY
+    const days=ref.getDate(); const labels=[],ty=[],ly=[];
+    const curStart=new Date(ref.getFullYear(),ref.getMonth(),1);
+    const lyStart=shiftYear(curStart,-1), lyRef=shiftYear(ref,-1);
+    const cumT={},cumL={};
+    for(const r of filtered()){
+      if(inRange(r,curStart,ref)) cumT[r.d.getDate()]=(cumT[r.d.getDate()]||0)+r.net;
+      if(inRange(r,lyStart,lyRef)) cumL[r.d.getDate()]=(cumL[r.d.getDate()]||0)+r.net;
+    }
+    let at=0,al=0;
+    for(let i=1;i<=days;i++){ labels.push(String(i)); at+=cumT[i]||0; al+=cumL[i]||0; ty.push(at); ly.push(al); }
+    // Target Pace: cumulative straight-line pace to hit the month's target (Feature 5, v1.1.0)
+    const dimMo=new Date(ref.getFullYear(),ref.getMonth()+1,0).getDate();
+    const mTarget=monthTargetForFiltered(ref.getFullYear(),ref.getMonth());
+    const dsMtd=[
+      {label:'ยอดขายจริง (ปีนี้)',data:ty,borderColor:CATCOLORS[0],backgroundColor:CATCOLORS[0]+'22',fill:true,tension:.25,pointRadius:0},
+      {label:'ปีก่อน (LY)',data:ly,borderColor:'#9ca3af',borderDash:[5,4],fill:false,tension:.25,pointRadius:0}
+    ];
+    if(mTarget>0){ const pace=[]; for(let i=1;i<=days;i++) pace.push(mTarget/dimMo*i);
+      dsMtd.push({label:'เป้าหมาย (Target Pace)',data:pace,borderColor:'#f59e0b',borderDash:[3,3],fill:false,tension:0,pointRadius:0}); }
+    $('#trendTitle').textContent='ยอดขายสะสมเดือนนี้ (MTD) เทียบปีก่อน'+(mTarget>0?' และเป้าหมาย':'');
+    $('#trendNote').textContent='สะสมรายวันของเดือน '+(ref.getMonth()+1)+'/'+ref.getFullYear()+' vs '+(ref.getFullYear()-1)+(mTarget>0?' • เส้นประส้ม = แนวเป้าหมาย (Target Pace)':' • ยังไม่ได้ตั้งเป้าเดือนนี้');
+    mkChart('trendChart',{type:'line',data:{labels,datasets:dsMtd},options:baseOpts()});
+  } else {
+    // YTD monthly TY vs LY
+    const months=ref.getMonth()+1; const labels=[],ty=[],ly=[];
+    const mm=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+    const y=ref.getFullYear();
+    const bt={},bl={};
+    for(const r of filtered()){
+      if(r.y===y && r.m<=months) bt[r.m]=(bt[r.m]||0)+r.net;
+      // the current (incomplete) month must compare against the SAME day-of-month cutoff last year,
+      // not the full LY month, or the YoY bar for this month is wildly overstated on the LY side
+      if(r.y===y-1 && r.m<months) bl[r.m]=(bl[r.m]||0)+r.net;
+      if(r.y===y-1 && r.m===months && r.d.getDate()<=ref.getDate()) bl[r.m]=(bl[r.m]||0)+r.net;
+    }
+    const tgt=[]; let anyT=false;
+    for(let i=1;i<=months;i++){ labels.push(mm[i-1]); ty.push(bt[i]||0); ly.push(bl[i]||0);
+      const mt=monthTargetForFiltered(y,i-1); tgt.push(mt); if(mt>0) anyT=true; }
+    const dsYtd=[
+      {type:'bar',label:String(y),data:ty,backgroundColor:CATCOLORS[0],borderRadius:4},
+      {type:'bar',label:String(y-1),data:ly,backgroundColor:'#9ca3af',borderRadius:4}
+    ];
+    if(anyT) dsYtd.push({type:'line',label:'เป้าหมาย (Target)',data:tgt,borderColor:'#f59e0b',borderDash:[4,3],fill:false,tension:0,pointRadius:2});
+    $('#trendTitle').textContent='ยอดขายรายเดือน YTD เทียบปีก่อน'+(anyT?' และเป้าหมาย':'');
+    $('#trendNote').textContent=y+' vs '+(y-1)+' • '+S.netLabel+' • เดือน '+mm[months-1]+' เทียบถึงวันที่ '+ref.getDate()+' ของปีก่อนเท่านั้น (เดือนยังไม่จบ)'+(anyT?' • เส้นประส้ม = เป้าหมายรายเดือน':'');
+    mkChart('trendChart',{data:{labels,datasets:dsYtd},options:baseOpts()});
+  }
+}
+// product breakdown dimension follows the brand filter: GOODR (only) -> ModelName, otherwise Subclass
+function brandProductDim(){
+  const bf=S.filters.brand;
+  const useModel = bf.has('GOODR') && !bf.has('NATGEO');
+  return useModel ? {key:'md', en:'ModelName', th:'รุ่น (ModelName)'} : {key:'sc', en:'Product Subclass', th:'หมวดสินค้า (Subclass)'};
+}
+// doughnut: product mix (brand-aware Subclass/ModelName)
+function renderChannel(rowsCur){
+  const dim=brandProductDim();
+  $('#channelTitle').textContent='สัดส่วนตาม'+dim.th;
+  $('#channelNote').textContent=dim.en+' — '+S.netLabel+' (Top 8)';
+  const g=groupSum(rowsCur,dim.key); const e=topN(g,8);
+  const opt=baseOpts(); opt.scales={}; opt.plugins.legend.position='right';
+  opt.plugins.tooltip.callbacks.label=c=>` ${c.label}: ${compact(c.parsed)}`;
+  mkChart('channelChart',{type:'doughnut',data:{labels:e.map(x=>x[0]),
+    datasets:[{data:e.map(x=>x[1]),backgroundColor:CATCOLORS,borderWidth:0}]},options:opt});
+}
+// horizontal bar: sales by Store Type
+function renderCat(rowsCur){
+  $('#catTitle').textContent='ยอดขายราย Store Type';
+  $('#catNote').textContent='ประเภทร้าน — '+S.netLabel;
+  const g=groupSum(rowsCur,'stp'); const e=topN(g,8);
+  const opt=baseOpts(); opt.indexAxis='y'; opt.plugins.legend.display=false;
+  // build fresh scale configs rather than mutating baseOpts()'s: its y-scale ticks.callback is a
+  // number formatter meant for a value axis, but on this horizontal chart y is the category axis —
+  // setting callback to undefined left the key present, which fed the category index (0,1,2…) into
+  // the tick label instead of falling through to the default "use the label text" behavior
+  opt.scales={
+    x:{ticks:{color:axisColor(),font:{size:10},callback:v=>compact(v)},grid:{color:gridColor()}},
+    y:{ticks:{color:axisColor(),font:{size:10}},grid:{display:false}}
+  };
+  mkChart('catChart',{type:'bar',data:{labels:e.map(x=>x[0]),
+    datasets:[{data:e.map(x=>x[1]),backgroundColor:CATCOLORS[4],borderRadius:4}]},options:opt});
+}
+function renderTable(rowsCur,rowsLy){
+  const cur={},ly={},qy={},gpv={};
+  for(const r of rowsCur){ cur[r.md]=(cur[r.md]||0)+r.net; qy[r.md]=(qy[r.md]||0)+r.qty; gpv[r.md]=(gpv[r.md]||0)+r.gp; }
+  for(const r of rowsLy){ ly[r.md]=(ly[r.md]||0)+r.net; }
+  const total=Object.values(cur).reduce((a,b)=>a+b,0)||1;
+  const top=topN(cur,20);
+  $('#topTbl tbody').innerHTML=top.map(([name,net])=>{
+    const gpp=net?gpv[name]/net*100:0; const share=net/total*100;
+    return `<tr><td>${name}</td><td>${baht(net)}</td><td>${nf0.format(qy[name]||0)}</td>
+      <td>${nf1.format(gpp)}%</td><td>${nf1.format(share)}%</td><td>${deltaHTML(net,ly[name]||0)}</td></tr>`;
+  }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลในช่วงที่เลือก</td></tr>';
+}
+
+function renderPromo(rowsCur, rowsLy){
+  const withPromo=rowsCur.filter(r=>r.pc||r.pn);
+  const totalNet=rowsCur.reduce((a,r)=>a+r.net,0);
+  const promoNet=withPromo.reduce((a,r)=>a+r.net,0);
+  const promoDisc=withPromo.reduce((a,r)=>a+r.da,0);
+  const promoShare=totalNet?promoNet/totalNet*100:0;
+  // discount % approximated against pre-discount value (net + discount), since only the post-discount
+  // net sale and the discount amount are available per row
+  const avgDiscPct=(promoNet+promoDisc)?promoDisc/(promoNet+promoDisc)*100:0;
+
+  const keyOf=r=>(r.pc||'')+'|'+(r.pn||r.pc||'ไม่ระบุชื่อ');
+  const cur={};
+  for(const r of withPromo){
+    const k=keyOf(r);
+    const o=cur[k] || (cur[k]={net:0,qty:0,disc:0,billSum:0,bills:new Set(),name:r.pn||r.pc});
+    o.net+=r.net; o.qty+=r.qty; o.disc+=r.da; o.billSum+=r.bc||0; if(r.rc) o.bills.add(r.rc);
+  }
+  const lyNet={};
+  for(const r of rowsLy){ if(!(r.pc||r.pn)) continue; const k=keyOf(r); lyNet[k]=(lyNet[k]||0)+r.net; }
+  const distinctPromos=Object.keys(cur).length;
+
+  $('#promoNote').textContent=`${withPromo.length.toLocaleString()} จาก ${rowsCur.length.toLocaleString()} แถวมีโปรโมชั่น (${nf1.format(promoShare)}% ของยอดขาย) • ${distinctPromos} โปรโมชั่นที่มียอดขายในช่วงที่เลือก • ${S.netLabel}`;
+
+  $('#promoKpis').innerHTML=[
+    {k:'ยอดขายที่มีโปรโมชั่น', v:baht(promoNet), sub:nf1.format(promoShare)+'% ของยอดขายรวม'},
+    {k:'ยอดขายไม่มีโปรโมชั่น', v:baht(totalNet-promoNet), sub:nf1.format(100-promoShare)+'% ของยอดขายรวม'},
+    {k:'ส่วนลดรวม', v:baht(promoDisc), sub:'เฉลี่ย '+nf1.format(avgDiscPct)+'% ของยอดก่อนลด'},
+    {k:'จำนวนโปรโมชั่นที่ใช้งาน', v:nf0.format(distinctPromos), sub:'มียอดขายในช่วงที่เลือก'}
+  ].map(c=>`<div class="kpi"><div class="k">${c.k}</div><div class="v">${c.v}</div><div class="sub">${c.sub}</div></div>`).join('');
+
+  const top=Object.entries(cur).sort((a,b)=>b[1].net-a[1].net).slice(0,15);
+  $('#promoTbl tbody').innerHTML=top.map(([k,o])=>{
+    const bills=billsOf(o);
+    const discPct=(o.net+o.disc)?o.disc/(o.net+o.disc)*100:0;
+    const share=promoNet?o.net/promoNet*100:0;
+    const code=k.split('|')[0];
+    const label=code?`${esc(code)} — ${esc(o.name)}`:esc(o.name);
+    return `<tr><td>${label}</td><td>${baht(o.net)}</td><td>${nf0.format(o.qty)}</td><td>${nf0.format(bills)}</td>
+      <td>${baht(o.disc)}</td><td>${nf1.format(discPct)}%</td><td>${nf1.format(share)}%</td>
+      <td>${deltaHTML(o.net,lyNet[k]||0)}</td></tr>`;
+  }).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลโปรโมชั่นในช่วงที่เลือก</td></tr>';
+}
+
+function kpiRow(o, rangeDays, daysInMonth){
+  const bills=billsOf(o);
+  const atv=bills?o.net/bills:0, upt=bills?o.qty/bills:0, asp=o.qty?o.net/o.qty:0;
+  const perDay=rangeDays?o.net/rangeDays:0;
+  // forecast to end of month only makes sense in the MTD view (rangeDays = days elapsed this month);
+  // daysInMonth is passed only for MTD, so forecast stays null (shown as "—") for Daily/YTD
+  const forecast=daysInMonth?perDay*daysInMonth:null;
+  return {...o, bills, atv, upt, asp, perDay, forecast};
+}
+function kpiRowHTML(labelHTML, extraTd, r, rowClass, trailingTd){
+  return `<tr${rowClass?` class="${rowClass}"`:''}><td>${labelHTML}</td>${extraTd}
+      <td>${baht(r.net)}</td><td>${nf0.format(r.qty)}</td><td>${nf0.format(r.bills)}</td>
+      <td>${baht(r.atv)}</td><td>${nf1.format(r.upt)}</td><td>${baht(r.asp)}</td>
+      <td>${baht(r.perDay)}</td><td>${r.forecast!=null?baht(r.forecast):'—'}</td>${trailingTd||''}
+    </tr>`;
+}
+
+function renderStoreTable(){
+  // Store-level Retail KPI, now scoped to the selected Daily/MTD/YTD range (via ranges()). Forecast to
+  // end-of-month and the monthly Target/%Target columns only make sense for MTD, so they show "—" in
+  // the Daily and YTD views; MoM/YoY reuse the view's own comparison ranges (with the same day cutoff).
+  const ref=S.refDate, y=ref.getFullYear(), mo=ref.getMonth();
+  const R=ranges();
+  const isMTD=S.view==='mtd', isYTD=S.view==='ytd';
+  const daysInMonth=isMTD?new Date(y,mo+1,0).getDate():null; // passed to kpiRow only for MTD -> forecast
+  // the "rate" column is per-day normally, but per-month in YTD (÷ months elapsed Jan..refMonth)
+  const rangeDays=Math.round((R.cur[1]-R.cur[0])/86400000)+1;
+  const rateDiv=isYTD?(mo+1):rangeDays;
+  // relabel the rate column header to match
+  document.querySelectorAll('.rateCol').forEach(th=>th.textContent=isYTD?'ยอด/เดือน':'ยอด/วัน');
+  const flt=filtered();
+  const rows=flt.filter(r=>inRange(r,R.cur[0],R.cur[1]));
+
+  // MoM/YoY comparison periods come straight from the view's ranges() (MoM absent in YTD -> R.lm null)
+  const hasLm=!!R.lm;
+  const rowsLm=hasLm?flt.filter(r=>inRange(r,R.lm[0],R.lm[1])):[];
+  const rowsLy=flt.filter(r=>inRange(r,R.ly[0],R.ly[1]));
+  const netByStoreLm=groupSum(rowsLm,'st'), netByStoreLy=groupSum(rowsLy,'st');
+  const netByTypeLm=groupSum(rowsLm,'stp'), netByTypeLy=groupSum(rowsLy,'stp');
+  const totalLm=rowsLm.reduce((a,r)=>a+r.net,0), totalLy=rowsLy.reduce((a,r)=>a+r.net,0);
+  const cmpTd=(net,lm,ly)=>`<td>${hasLm?deltaHTML(net,lm):'—'}</td><td>${deltaHTML(net,ly)}</td>`;
+
+  // monthly operation target (Store_Code x YYYY-MM of refDate's month) — only shown in the MTD view,
+  // "—" elsewhere and when no target is set (avoids a misleading 0% achievement)
+  const ymKey=`${y}-${String(mo+1).padStart(2,'0')}`;
+  const targetOf=code=>isMTD?(S.targets[code+'|'+ymKey]||0):0;
+  const targetTd=(net,target)=>{
+    if(!isMTD||!target) return '<td>—</td><td>—</td>';
+    const pct=net/target*100;
+    const cls=pct>=100?'up':pct>=80?'flat':'down';
+    return `<td>${baht(target)}</td><td><span class="delta ${cls}">${nf1.format(pct)}%</span></td>`;
+  };
+
+  // per-store
+  const byStore={};
+  for(const r of rows){
+    const o=byStore[r.st] || (byStore[r.st]={net:0,qty:0,billSum:0,bills:new Set(),stn:r.stn,stp:r.stp});
+    o.net+=r.net; o.qty+=r.qty; o.billSum+=r.bc||0; if(r.rc) o.bills.add(r.rc);
+  }
+  const storeList=Object.entries(byStore).map(([code,o])=>({code, target:targetOf(code), ...kpiRow(o,rateDiv,daysInMonth)}))
+    .sort((a,b)=>b.net-a.net);
+
+  // per-store-type + overall total — target rolled up from each store's own target
+  const byType={};
+  const total={net:0,qty:0,billSum:0,bills:new Set(),storeSet:new Set()};
+  let totalTarget=0; const targetByType={};
+  for(const r of rows){
+    const o=byType[r.stp] || (byType[r.stp]={net:0,qty:0,billSum:0,bills:new Set(),storeSet:new Set()});
+    o.net+=r.net; o.qty+=r.qty; o.billSum+=r.bc||0; if(r.rc) o.bills.add(r.rc); o.storeSet.add(r.st);
+    total.net+=r.net; total.qty+=r.qty; total.billSum+=r.bc||0; if(r.rc) total.bills.add(r.rc); total.storeSet.add(r.st);
+  }
+  storeList.forEach(s=>{ targetByType[s.stp]=(targetByType[s.stp]||0)+s.target; totalTarget+=s.target; });
+  const typeList=Object.entries(byType).map(([tp,o])=>({tp, nstores:o.storeSet.size, ...kpiRow(o,rateDiv,daysInMonth)}))
+    .sort((a,b)=>b.net-a.net);
+  const totalRow=kpiRow(total,rateDiv,daysInMonth);
+
+  const viewLabel=S.view==='daily'?'รายวัน (Daily)':isMTD?'เดือนนี้ (MTD)':S.view==='custom'?'ช่วงเอง (Custom)':'ปีนี้ (YTD)';
+  $('#storeNote').textContent=`ช่วง ${viewLabel}: ${iso(R.cur[0])} → ${iso(R.cur[1])} • ${storeList.length} สาขาที่มียอดขาย • ${hasLm?'MoM/YoY':'YoY'} เทียบช่วงเดียวกันของเดือน/ปีก่อน`
+    + (isMTD ? (totalTarget?` • เป้าหมายเดือนนี้ ${baht(totalTarget)}`:' • ยังไม่ได้อัปโหลดไฟล์เป้าหมายของเดือนนี้')
+             : ' • พยากรณ์สิ้นเดือน/เป้าหมาย แสดงเฉพาะแท็บ MTD');
+
+  $('#storeTypeTbl tbody').innerHTML = rows.length ?
+    kpiRowHTML('รวมทั้งหมด (Total)', `<td>${nf0.format(total.storeSet.size)}</td>`, totalRow, 'total-row', cmpTd(total.net,totalLm,totalLy)+targetTd(total.net,totalTarget))
+    + typeList.map(t=>kpiRowHTML(esc(t.tp), `<td>${nf0.format(t.nstores)}</td>`, t, null, cmpTd(t.net,netByTypeLm[t.tp]||0,netByTypeLy[t.tp]||0)+targetTd(t.net,targetByType[t.tp]||0))).join('')
+    : '<tr><td colspan="14" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลในช่วงที่เลือก</td></tr>';
+
+  $('#storeTbl tbody').innerHTML = storeList.map(s=>kpiRowHTML(`${esc(s.code)} — ${esc(s.stn)}`, `<td>${esc(s.stp)}</td>`, s, null, cmpTd(s.net,netByStoreLm[s.code]||0,netByStoreLy[s.code]||0)+targetTd(s.net,s.target))).join('')
+    || '<tr><td colspan="14" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลในช่วงที่เลือก</td></tr>';
+}
+
+function stockRowHTML(m, withAbc){
+  const wocStr = m.woc===Infinity ? '∞' : nf1.format(m.woc);
+  return `<tr><td>${esc(m.md)}</td><td>${esc(m.sc)}</td>${withAbc?`<td>${m.abc}</td>`:''}<td>${m.status}</td>
+    <td>${nf0.format(m.qty)}</td><td>${baht(m.stockAmt)}</td><td>${nf0.format(m.sold90)}</td>
+    <td>${nf1.format(m.sellThrough)}%</td><td>${nf1.format(m.avgWeekly)}</td><td>${wocStr}</td></tr>`;
+}
+
+function renderStock(){
+  const hasStock=S.stockRows.length>0;
+  $('#stockEmpty').classList.toggle('hide', hasStock);
+  $('#stockBody').classList.toggle('hide', !hasStock);
+  if(!hasStock) return;
+
+  const stk=filteredStock();
+  const asOf=S.stockAsOf;
+  const winStart90=new Date(asOf); winStart90.setDate(asOf.getDate()-89);
+  const winStart56=new Date(asOf); winStart56.setDate(asOf.getDate()-55);
+
+  // sales in the trailing windows, respecting the same brand/subclass/store filters as the rest
+  // of the dashboard (filtered() also applies channel/store-type, which is fine — an empty
+  // selection there means "all", so it never narrows the stock analysis unless the user picks one)
+  // product dimension follows the brand filter (GOODR-only -> ModelName, else Subclass), same as Sales
+  const dim=brandProductDim(), dimKey=dim.key;
+  const salesAll=filtered();
+  const sold90ByModel={}, sold56ByModel={}, saleVal90ByModel={};
+  for(const r of salesAll){
+    const dk=r[dimKey];
+    if(inRange(r,winStart90,asOf)){ sold90ByModel[dk]=(sold90ByModel[dk]||0)+r.qty; saleVal90ByModel[dk]=(saleVal90ByModel[dk]||0)+r.net; }
+    if(inRange(r,winStart56,asOf)) sold56ByModel[dk]=(sold56ByModel[dk]||0)+r.qty;
+  }
+
+  // aggregate stock by the chosen dimension
+  const byModel={};
+  for(const r of stk){
+    const dk=r[dimKey];
+    const o=byModel[dk] || (byModel[dk]={qty:0,stockAmt:0,costAmt:0,sc:r.sc,gdSet:new Set()});
+    o.qty+=r.qty; o.stockAmt+=r.stockAmt; o.costAmt+=r.costAmt; o.gdSet.add(r.gd);
+  }
+
+  const models=Object.entries(byModel).map(([md,o])=>{
+    const sold90=sold90ByModel[md]||0, sold56=sold56ByModel[md]||0, saleVal90=saleVal90ByModel[md]||0;
+    const sellThrough=(sold90+o.qty)?sold90/(sold90+o.qty)*100:0;
+    const avgWeekly=sold56/8;
+    const woc = avgWeekly>0.0001 ? o.qty/avgWeekly : (o.qty>0?Infinity:0);
+    let status,statusClass;
+    if(o.qty<=0){ status='⚪ หมดสต็อก'; statusClass='oos'; }
+    else if(avgWeekly>0.0001 && woc<2){ status='🔴 ใกล้หมด'; statusClass='low'; }
+    else if(avgWeekly<=0.0001 || woc>12){ status='🟡 ขายช้า/ค้างสต็อก'; statusClass='slow'; }
+    else { status='🟢 ปกติ'; statusClass='ok'; }
+    return {md, sc: dimKey==='sc' ? '—' : o.sc, nGd:o.gdSet.size, qty:o.qty, stockAmt:o.stockAmt, costAmt:o.costAmt,
+      sold90, saleVal90, sellThrough, avgWeekly, woc, status, statusClass};
+  });
+
+  // ABC by sales VALUE in the trailing 90 days (Pareto: A = top 80% cumulative, B = next 15%, C = rest)
+  const totalSaleVal=models.reduce((a,m)=>a+m.saleVal90,0);
+  const sorted=[...models].sort((a,b)=>b.saleVal90-a.saleVal90);
+  let cum=0;
+  for(const m of sorted){
+    if(totalSaleVal<=0){ m.abc='N/A'; continue; }
+    cum+=m.saleVal90;
+    const cumPct=cum/totalSaleVal*100;
+    m.abc = cumPct<=80?'A':cumPct<=95?'B':'C';
+  }
+  const abcSummary={A:{n:0,val:0,stock:0},B:{n:0,val:0,stock:0},C:{n:0,val:0,stock:0}};
+  for(const m of models){ if(!abcSummary[m.abc]) continue; abcSummary[m.abc].n++; abcSummary[m.abc].val+=m.saleVal90; abcSummary[m.abc].stock+=m.stockAmt; }
+
+  const totalQty=stk.reduce((a,r)=>a+r.qty,0);
+  const totalStockAmt=stk.reduce((a,r)=>a+r.stockAmt,0);
+  const totalCostAmt=stk.reduce((a,r)=>a+r.costAmt,0);
+  const skuCount=new Set(stk.map(r=>r.gd)).size;
+  const storeCount=new Set(stk.map(r=>r.st)).size;
+  const totalSold90=models.reduce((a,m)=>a+m.sold90,0);
+  const overallST=(totalSold90+totalQty)?totalSold90/(totalSold90+totalQty)*100:0;
+
+  document.querySelectorAll('.prodCol').forEach(th=>th.textContent = dimKey==='md'?'รุ่น (ModelName)':'หมวด (Subclass)');
+  $('#stockNote').textContent=`ณ วันที่สแนปช็อตสต็อก ${iso(asOf)} • แยกตาม ${dim.en} • ${skuCount.toLocaleString()} SKU / ${models.length.toLocaleString()} ${dimKey==='md'?'รุ่น':'หมวด'} (หลังกรอง) • Sell-Through/WOC คำนวณจากยอดขาย ${iso(winStart90)} → ${iso(asOf)}`;
+
+  $('#stockKpis').innerHTML=[
+    {k:'สต็อกคงเหลือ', v:nf0.format(totalQty)+' ชิ้น', sub:`${skuCount} SKU • ${storeCount} สาขา/คลัง`},
+    {k:'มูลค่าสต็อก (ราคาขาย)', v:baht(totalStockAmt), sub:'Current Price'},
+    {k:'มูลค่าสต็อก (ต้นทุน)', v:baht(totalCostAmt), sub:'GP ถ้าขายหมด '+nf1.format(totalStockAmt?(totalStockAmt-totalCostAmt)/totalStockAmt*100:0)+'%'},
+    {k:'Sell-Through เฉลี่ย (90 วัน)', v:nf1.format(overallST)+'%', sub:'รวมทุกสินค้าที่มีสต็อก'}
+  ].map(c=>`<div class="kpi"><div class="k">${c.k}</div><div class="v">${c.v}</div><div class="sub">${c.sub}</div></div>`).join('');
+
+  // Stock, Stock Cost and MOH (Months On Hand) per store — sales data has descriptive Store_Name,
+  // the stock file only carries bare store codes, so borrow the name from sales rows where available
+  const storeNameMap={}; S.rows.forEach(r=>{ if(!storeNameMap[r.st]) storeNameMap[r.st]=r.stn; });
+  const soldByStore90={};
+  for(const r of salesAll){ if(inRange(r,winStart90,asOf)) soldByStore90[r.st]=(soldByStore90[r.st]||0)+r.qty; }
+  const stockByStore={};
+  for(const r of stk){
+    const o=stockByStore[r.st] || (stockByStore[r.st]={qty:0,stockAmt:0,costAmt:0});
+    o.qty+=r.qty; o.stockAmt+=r.stockAmt; o.costAmt+=r.costAmt;
+  }
+  const mohOf=(qty,sold90)=>{ const avgMonthly=sold90/3; return avgMonthly>0.0001?qty/avgMonthly:(qty>0?Infinity:0); };
+  const storeMOH=Object.entries(stockByStore).map(([code,o])=>{
+    const sold90=soldByStore90[code]||0, avgMonthly=sold90/3;
+    return {code, name:storeNameMap[code]||code, qty:o.qty, stockAmt:o.stockAmt, costAmt:o.costAmt, avgMonthly, moh:mohOf(o.qty,sold90)};
+  }).sort((a,b)=>b.costAmt-a.costAmt);
+  const totalStoreQty=storeMOH.reduce((a,s)=>a+s.qty,0), totalStoreCost=storeMOH.reduce((a,s)=>a+s.costAmt,0);
+  const totalStoreAvgMonthly=storeMOH.reduce((a,s)=>a+s.avgMonthly,0);
+  const totalMOH=mohOf(totalStoreQty,totalStoreAvgMonthly*3);
+  const storeRowHTML=(label,s,cls)=>{
+    const mohStr = s.moh===Infinity?'∞':nf1.format(s.moh);
+    return `<tr${cls?` class="${cls}"`:''}><td>${label}</td><td>${nf0.format(s.qty)}</td><td>${baht(s.costAmt)}</td>
+      <td>${nf1.format(s.avgMonthly)}</td><td>${mohStr}</td></tr>`;
+  };
+  $('#stockStoreTbl tbody').innerHTML = storeMOH.length ?
+    storeRowHTML('รวมทั้งหมด (Total)', {qty:totalStoreQty,costAmt:totalStoreCost,avgMonthly:totalStoreAvgMonthly,moh:totalMOH}, 'total-row')
+    + storeMOH.map(s=>storeRowHTML(s.code===s.name?esc(s.code):`${esc(s.code)} — ${esc(s.name)}`, s)).join('')
+    : '<tr><td colspan="5" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลสต็อกในตัวกรองที่เลือก</td></tr>';
+
+  $('#abcKpis').innerHTML=['A','B','C'].map(cls=>{
+    const s=abcSummary[cls];
+    const valPct=totalSaleVal>0?s.val/totalSaleVal*100:0;
+    return `<div class="kpi"><div class="k">Class ${cls}</div><div class="v">${s.n} รุ่น</div>
+      <div class="sub">${nf1.format(valPct)}% ของยอดขาย • สต็อกผูก ${compact(s.stock)}</div></div>`;
+  }).join('');
+
+  const lowStock=models.filter(m=>m.statusClass==='low').sort((a,b)=>a.woc-b.woc).slice(0,10);
+  const slowStock=models.filter(m=>m.statusClass==='slow').sort((a,b)=>b.stockAmt-a.stockAmt).slice(0,10);
+  const alertList=[...lowStock,...slowStock];
+  $('#alertTbl tbody').innerHTML = alertList.length ? alertList.map(m=>stockRowHTML(m,false)).join('')
+    : '<tr><td colspan="9" style="text-align:center;color:var(--muted)">ไม่มีสินค้าที่ต้องจับตาในตอนนี้ 🎉</td></tr>';
+
+  const stockSorted=[...models].sort((a,b)=>b.stockAmt-a.stockAmt);
+  $('#stockTbl tbody').innerHTML = stockSorted.map(m=>stockRowHTML(m,true)).join('')
+    || '<tr><td colspan="10" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลสต็อกในตัวกรองที่เลือก</td></tr>';
+}
+
+/* ---------- v1.1.0 shared helpers (Sales Health, Store Performance, Trend pace) ---------- */
+// NOTE: these introduce NEW derived indicators. They do NOT change any existing KPI definition
+// (Sales/Net/GP/GP%/ASP/ATV/UPT/Sell-Through/MOH/Forecast) — see changelog.md.
+function monthKey(y,mo){ return y+'-'+String(mo+1).padStart(2,'0'); }
+function viewLabelOf(){ return S.view==='daily'?'รายวัน (Daily)':S.view==='mtd'?'เดือนนี้ (MTD)':S.view==='custom'?'ช่วงเอง (Custom)':'ปีนี้ (YTD)'; }
+// monthly operation target rolled up to match the current view: MTD=refMonth, YTD=Jan..refMonth,
+// Daily/Custom=null (targets are a monthly figure with no daily/arbitrary-span mapping)
+function storeTargetForView(code){
+  const ref=S.refDate, y=ref.getFullYear(), mo=ref.getMonth();
+  if(S.view==='mtd') return S.targets[code+'|'+monthKey(y,mo)]||0;
+  if(S.view==='ytd'){ let t=0; for(let i=0;i<=mo;i++) t+=S.targets[code+'|'+monthKey(y,i)]||0; return t; }
+  return null;
+}
+// sum of a single month's targets across the stores present in the (all-time) filtered data
+function monthTargetForFiltered(y,mo){
+  const codes=new Set(filtered().map(r=>r.st));
+  let t=0; codes.forEach(c=>{ t+=S.targets[c+'|'+monthKey(y,mo)]||0; }); return t;
+}
+// per-store stock qty + trailing-90-day sold qty, for store-level ST% / MOH; null when no stock file
+function storeStockStats(){
+  if(!S.stockRows.length || !S.stockAsOf) return null;
+  const asOf=S.stockAsOf;
+  const winStart90=new Date(asOf); winStart90.setDate(asOf.getDate()-89);
+  const sold90={}, stock={};
+  for(const r of filtered()){ if(inRange(r,winStart90,asOf)) sold90[r.st]=(sold90[r.st]||0)+r.qty; }
+  for(const r of filteredStock()){ const o=stock[r.st]||(stock[r.st]={qty:0}); o.qty+=r.qty; }
+  return {sold90, stock, asOf};
+}
+// dead-stock risk, computed entirely from the Flag_O aging dataset (self-consistent, single source):
+// severe-aging cost (O + <O>, i.e. 180+ days unsold) as a share of ALL aged/at-risk stock cost
+// (W+N+O+<O>). We deliberately do NOT divide by the stock-card file total — that is a different
+// snapshot with different coverage and mixing the two produces meaningless (>100%) ratios.
+function stockRiskStats(){
+  const aging=filteredAging();
+  if(!aging.length) return null;
+  const dead=aging.filter(a=>a.flag==='O'||a.flag==='<O>');
+  const deadCost=dead.reduce((s,a)=>s+a.scost,0);
+  const deadGd=new Set(dead.map(a=>a.gd)).size;
+  const totalCost=aging.reduce((s,a)=>s+a.scost,0); // all Flag_O (aged) stock cost
+  const pctRisk = totalCost>0 ? deadCost/totalCost*100 : 0;
+  return {deadCost, deadGd, totalCost, pctRisk, denomLabel:'ต้นทุนสต็อกค้าง (Flag_O) ทั้งหมด'};
+}
+// GREEN/YELLOW/RED gating (approved defaults): vs target/LY -> >=100 g, >=90 y, else r; risk -> <10 g, <=25 y, else r
+function hstat(v, kind){
+  if(v==null||isNaN(v)) return 'n';
+  if(kind==='risk') return v<10?'g':v<=25?'y':'r';
+  return v>=100?'g':v>=90?'y':'r';
+}
+const HBADGE={g:'🟢 ปกติ',y:'🟡 เฝ้าระวัง',r:'🔴 วิกฤต',n:'⚪ ไม่มีข้อมูล'};
+
+function renderHealth(cur, ly, rc){
+  const ref=S.refDate, y=ref.getFullYear(), mo=ref.getMonth();
+  const codes=new Set(rc.map(r=>r.st));
+  // period target (view-aware) for Sales-vs-Target
+  let periodTarget=null;
+  if(S.view==='mtd'||S.view==='ytd'){ periodTarget=0; codes.forEach(c=>{ periodTarget+=storeTargetForView(c)||0; }); }
+  // month target for Forecast-vs-Target (always refDate's month, like the Forecast card)
+  let monthTarget=0; codes.forEach(c=>{ monthTarget+=S.targets[c+'|'+monthKey(y,mo)]||0; });
+  const daysInMonth=new Date(y,mo+1,0).getDate(), daysElapsed=ref.getDate();
+  const monthStart=new Date(y,mo,1);
+  const monthNet=filtered().reduce((a,r)=>inRange(r,monthStart,ref)?a+r.net:a,0);
+  const forecast=daysElapsed?monthNet/daysElapsed*daysInMonth:0;
+  const totalNet=rc.reduce((a,r)=>a+r.net,0);
+  const promoNet=rc.filter(r=>r.pc||r.pn).reduce((a,r)=>a+r.net,0);
+  const promoPct=totalNet?promoNet/totalNet*100:0;
+  const lyPct = ly.net>0 ? cur.net/ly.net*100 : null;
+  const risk=stockRiskStats();
+
+  const card=(label,big,badge,sub)=>`<div class="kpi ${badge}"><div class="hbadge ${badge}">${HBADGE[badge]}</div><div class="k">${label}</div><div class="v">${big}</div><div class="sub">${sub}</div></div>`;
+  const cards=[];
+  if(periodTarget!=null && periodTarget>0){ const p=cur.net/periodTarget*100; cards.push(card('ยอดขาย vs เป้าหมาย',nf1.format(p)+'%',hstat(p,'target'),`ยอดขาย ${compact(cur.net)} / เป้า ${compact(periodTarget)}`)); }
+  else cards.push(card('ยอดขาย vs เป้าหมาย','—','n',(S.view==='mtd'||S.view==='ytd')?'ยังไม่ได้ตั้งเป้าในช่วงนี้':'เป้าเป็นค่ารายเดือน (ดูแท็บ MTD/YTD)'));
+
+  if(lyPct!=null) cards.push(card('ยอดขาย vs ปีก่อน (LY)',nf1.format(lyPct)+'%',hstat(lyPct,'ly'),`ปีนี้ ${compact(cur.net)} / ปีก่อน ${compact(ly.net)}`));
+  else cards.push(card('ยอดขาย vs ปีก่อน (LY)','—','n','ไม่มียอดขายปีก่อนในช่วงนี้'));
+
+  if(monthTarget>0){ const p=forecast/monthTarget*100; cards.push(card('พยากรณ์ vs เป้าหมาย',nf1.format(p)+'%',hstat(p,'target'),`พยากรณ์ ${compact(forecast)} / เป้าเดือน ${compact(monthTarget)}`)); }
+  else cards.push(card('พยากรณ์ vs เป้าหมาย','—','n','ยังไม่ได้ตั้งเป้าเดือนนี้'));
+
+  cards.push(card('สัดส่วนยอดขายโปรโมชั่น',nf1.format(promoPct)+'%','n',`โปร ${compact(promoNet)} / รวม ${compact(totalNet)}`));
+
+  if(risk) cards.push(card('Stock Risk (สต็อกค้างขั้นรุนแรง O/&lt;O&gt;)',nf1.format(risk.pctRisk)+'%',hstat(risk.pctRisk,'risk'),`ค้างรุนแรง ${compact(risk.deadCost)} / ${risk.denomLabel} ${compact(risk.totalCost)}`));
+  else cards.push(card('Stock Risk (สต็อกค้างขั้นรุนแรง O/&lt;O&gt;)','—','n','ไม่มีข้อมูล Flag_O ในไฟล์ยอดขาย'));
+
+  if(risk) cards.push(card('Slow Moving GDNO',nf0.format(risk.deadGd)+' รายการ',risk.deadGd>0?'y':'g','GDNO ที่ Flag_O = O หรือ &lt;O&gt; (ค้าง 180+ วัน)'));
+  else cards.push(card('Slow Moving GDNO','—','n','ไม่มีข้อมูล Flag_O ในไฟล์ยอดขาย'));
+
+  $('#healthCards').innerHTML=cards.join('');
+  $('#healthNote').textContent=`สุขภาพยอดขายของช่วง ${viewLabelOf()} • เกณฑ์สี: vs เป้า/พยากรณ์ ≥100% เขียว · 90–99% เหลือง · <90% แดง • Stock Risk <10% เขียว · 10–25% เหลือง · >25% แดง`;
+}
+
+function renderStorePerf(){
+  const R=ranges();
+  const flt=filtered();
+  const rc=flt.filter(r=>inRange(r,R.cur[0],R.cur[1]));
+  const rl=flt.filter(r=>inRange(r,R.ly[0],R.ly[1]));
+  const rangeDays=Math.max(1,Math.round((R.cur[1]-R.cur[0])/86400000)+1);
+  const cur={},ly={},qty={},name={},type={};
+  for(const r of rc){ cur[r.st]=(cur[r.st]||0)+r.net; qty[r.st]=(qty[r.st]||0)+r.qty; name[r.st]=r.stn; type[r.st]=r.stp; }
+  for(const r of rl){ ly[r.st]=(ly[r.st]||0)+r.net; }
+  const ss=storeStockStats();
+  const hasTargetView=(S.view==='mtd'||S.view==='ytd');
+  const list=Object.keys(cur).map(code=>{
+    const net=cur[code], lyN=ly[code]||0, q=qty[code]||0;
+    const sold90 = ss ? (ss.sold90[code]||0) : null;
+    const stockQ = ss ? (ss.stock[code]?ss.stock[code].qty:0) : null;
+    const st = (ss && (sold90+stockQ)>0) ? sold90/(sold90+stockQ)*100 : (ss?0:null);
+    const moh = ss ? ((sold90/3)>0.0001 ? stockQ/(sold90/3) : (stockQ>0?Infinity:0)) : null;
+    const perDay = net/rangeDays;
+    const target = hasTargetView ? (storeTargetForView(code)||0) : null;
+    const ach = (target&&target>0) ? net/target*100 : null;
+    return {code,name:name[code]||code,net,lyN,q,st,stockQ,moh,perDay,target,ach};
+  }).sort((a,b)=>b.net-a.net);
+
+  const rowHTML=s=>{
+    const stStr = s.st==null?'—':nf1.format(s.st)+'%';
+    const stockStr = s.stockQ==null?'—':nf0.format(s.stockQ);
+    const mohStr = s.moh==null?'—':(s.moh===Infinity?'∞':nf1.format(s.moh));
+    const tgtStr = (s.target==null||s.target===0)?'—':baht(s.target);
+    let achStr='—', achCls='';
+    if(s.ach!=null){ achCls='cell-'+hstat(s.ach,'target'); achStr=nf1.format(s.ach)+'%'; }
+    return `<tr>
+      <td>${esc(s.code)} — ${esc(s.name)}</td>
+      <td data-sort="${s.net}">${baht(s.net)}</td>
+      <td data-sort="${s.lyN}">${baht(s.lyN)}</td>
+      <td data-sort="${s.lyN>0?((s.net-s.lyN)/s.lyN*100):999999}">${deltaHTML(s.net,s.lyN)}</td>
+      <td data-sort="${s.q}">${nf0.format(s.q)}</td>
+      <td data-sort="${s.st==null?-1:s.st}">${stStr}</td>
+      <td data-sort="${s.stockQ==null?-1:s.stockQ}">${stockStr}</td>
+      <td data-sort="${s.moh==null?-1:(s.moh===Infinity?999999:s.moh)}">${mohStr}</td>
+      <td data-sort="${s.perDay}">${baht(s.perDay)}</td>
+      <td data-sort="${s.target==null?-1:s.target}">${tgtStr}</td>
+      <td class="${achCls}" data-sort="${s.ach==null?-1:s.ach}">${achStr}</td>
+    </tr>`;
+  };
+  $('#storePerfTbl tbody').innerHTML = list.length ? list.map(rowHTML).join('')
+    : '<tr><td colspan="11" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลในช่วงที่เลือก</td></tr>';
+  $('#storePerfNote').textContent = `ช่วง ${viewLabelOf()}: ${iso(R.cur[0])} → ${iso(R.cur[1])} • ${list.length} สาขา`
+    + (ss?` • Stock/ST%/MOH ณ ${iso(ss.asOf)}`:' • ยังไม่ได้อัปโหลดไฟล์สต็อก (ST%/Stock/MOH = —)')
+    + (hasTargetView?'':' • เป้าหมาย/%เป้าหมาย แสดงเฉพาะ MTD/YTD');
+}
+
+function renderAll(){
+  const f=filtered(); const R=ranges();
+  const rc=f.filter(r=>inRange(r,R.cur[0],R.cur[1]));
+  const rl=f.filter(r=>inRange(r,R.ly[0],R.ly[1]));
+  const rm=R.lm ? f.filter(r=>inRange(r,R.lm[0],R.lm[1])) : null;
+  const cur=agg(rc), ly=agg(rl), lm=rm?agg(rm):null;
+  cur._days=new Set(rc.map(r=>r.k)).size;
+  cur._months=new Set(rc.map(r=>r.y*100+r.m)).size;
+  renderKPIs(cur,ly,lm);
+  renderHealth(cur,ly,rc);
+  renderTrend(rc); renderChannel(rc); renderCat(rc); renderTable(rc,rl); renderPromo(rc,rl);
+  renderStorePerf();
+  renderStoreTable();
+  renderStock();
+  reapplySorts();
+  $('#foot').textContent=`ช่วงข้อมูลที่แสดง: ${iso(R.cur[0])} → ${iso(R.cur[1])} • เทียบปีก่อน ${iso(R.ly[0])} → ${iso(R.ly[1])}`
+    + (R.lm?` • เทียบเดือนก่อน ${iso(R.lm[0])} → ${iso(R.lm[1])}`:'')
+    + ` • ${S.rows.length.toLocaleString()} แถว`;
+}
+
+/* ---------- sortable tables (click any header, any dimension) ---------- */
+// A generic DOM sorter: works on whatever a render function already put in the tbody, so every
+// table becomes sortable without each one carrying its own sort logic. Rows flagged .total-row
+// (roll-up totals) stay pinned at the top regardless of sort.
+function cellSortVal(td){
+  const raw=(td.getAttribute('data-sort') ?? td.textContent).trim();
+  if(raw===''||raw==='—'||raw==='-') return {n:null,s:''};
+  if(raw==='∞') return {n:Infinity,s:raw};
+  const hasDigit=/[0-9]/.test(raw);
+  const num=parseFloat(raw.replace(/[^0-9.\-]/g,''));
+  if(hasDigit && !isNaN(num)) return {n:num,s:raw};
+  return {n:null,s:raw.toLowerCase()};
+}
+function sortTableById(id){
+  const st=S.sort[id]; const table=$('#'+id); if(!table||!st) return;
+  const tbody=table.tBodies[0]; if(!tbody) return;
+  const all=[...tbody.rows];
+  // don't sort an empty-state placeholder (single row with a colspan message)
+  if(all.length<=1 || (all.length===1 && all[0].cells.length===1)) { markSortHeader(table,st); return; }
+  if(all.length && all[0].cells.length===1 && all[0].cells[0].hasAttribute('colspan')) return;
+  const pinned=all.filter(r=>r.classList.contains('total-row'));
+  const body=all.filter(r=>!r.classList.contains('total-row'));
+  const i=st.idx, dir=st.dir;
+  body.sort((ra,rb)=>{
+    const a=cellSortVal(ra.cells[i]||{textContent:''}), b=cellSortVal(rb.cells[i]||{textContent:''});
+    let r;
+    if(a.n!==null && b.n!==null) r=a.n-b.n;
+    else if(a.n!==null) r=1; else if(b.n!==null) r=-1;
+    else r=a.s<b.s?-1:a.s>b.s?1:0;
+    return dir==='asc'?r:-r;
+  });
+  const frag=document.createDocumentFragment();
+  pinned.forEach(r=>frag.appendChild(r));
+  body.forEach(r=>frag.appendChild(r));
+  tbody.appendChild(frag);
+  markSortHeader(table,st);
+}
+function markSortHeader(table,st){
+  table.querySelectorAll('thead th').forEach((th,idx)=>{
+    if(idx===st.idx) th.setAttribute('data-dir',st.dir); else th.removeAttribute('data-dir');
+  });
+}
+function reapplySorts(){ for(const id in S.sort) sortTableById(id); }
+document.addEventListener('click', e=>{
+  const th=e.target.closest('#dash thead th'); if(!th) return;
+  const table=th.closest('table'); if(!table||!table.id) return;
+  const idx=[...th.parentElement.children].indexOf(th);
+  const prev=S.sort[table.id];
+  // first click on a column -> descending (largest first, most useful for ฿/qty); re-click flips
+  const dir=(prev && prev.idx===idx && prev.dir==='desc') ? 'asc' : 'desc';
+  S.sort[table.id]={idx,dir};
+  sortTableById(table.id); save();
+});
+
+/* ---------- multi-select filters UI ---------- */
+function initFilterUI(){
+  const html = FILTER_DEFS.map(def=>`
+    <div class="fld msel" data-key="${def.key}">
+      <label>${def.label}</label>
+      <button type="button" class="msel-btn" data-panel="msel_${def.key}_panel">
+        <span class="msel-btn-text">ทั้งหมด</span>
+      </button>
+      <div class="msel-panel hide" id="msel_${def.key}_panel" data-key="${def.key}">
+        <input type="text" class="msel-search" placeholder="ค้นหา...">
+        <div class="msel-tools"><button type="button" data-act="all">เลือกทั้งหมด</button><button type="button" data-act="none">ไม่เลือกเลย</button></div>
+        <div class="msel-list" id="msel_${def.key}_list"></div>
+      </div>
+    </div>`).join('');
+  $('#filters').insertAdjacentHTML('beforeend', html);
+
+  document.addEventListener('click', e=>{
+    const tool=e.target.closest('.msel-tools button');
+    if(tool){
+      const panel=tool.closest('.msel-panel'); const key=panel.dataset.key;
+      const boxes=[...panel.querySelectorAll('input[type=checkbox]')].filter(c=>c.closest('.msel-item').style.display!=='none');
+      if(tool.dataset.act==='all'){ boxes.forEach(c=>{ c.checked=true; S.filters[key].add(c.value); }); }
+      else { boxes.forEach(c=>{ c.checked=false; S.filters[key].delete(c.value); }); }
+      updateMselButton(key); renderAll(); save();
+      return;
+    }
+    const btn=e.target.closest('.msel-btn');
+    if(btn){
+      const panel=$('#'+btn.dataset.panel);
+      const willOpen=panel.classList.contains('hide');
+      document.querySelectorAll('.msel-panel').forEach(p=>p.classList.add('hide'));
+      if(willOpen) panel.classList.remove('hide');
+      e.stopPropagation();
+      return;
+    }
+    if(!e.target.closest('.msel-panel')) document.querySelectorAll('.msel-panel').forEach(p=>p.classList.add('hide'));
+  });
+  document.addEventListener('change', e=>{
+    const cb=e.target.closest('input[type=checkbox][data-key]'); if(!cb) return;
+    const key=cb.dataset.key;
+    if(cb.checked) S.filters[key].add(cb.value); else S.filters[key].delete(cb.value);
+    updateMselButton(key); renderAll(); save();
+  });
+  document.addEventListener('input', e=>{
+    const inp=e.target.closest('.msel-search'); if(!inp) return;
+    const panel=inp.closest('.msel-panel'); const q=inp.value.trim().toLowerCase();
+    panel.querySelectorAll('.msel-item').forEach(it=>{ it.style.display = it.textContent.toLowerCase().includes(q) ? '' : 'none'; });
+  });
+}
+function updateMselButton(key){
+  const panel=$('#msel_'+key+'_panel');
+  const btn=panel.closest('.msel').querySelector('.msel-btn-text');
+  const total=panel.querySelectorAll('input[type=checkbox]').length;
+  const n=S.filters[key].size;
+  btn.textContent = (n===0||n===total) ? 'ทั้งหมด' : n+' รายการ';
+}
+const TH_MONTHS=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+function buildFilters(){
+  const storeNameMap={}; S.rows.forEach(r=>{ if(!storeNameMap[r.st]) storeNameMap[r.st]=r.stn; });
+  FILTER_DEFS.forEach(def=>{
+    let vals=[...new Set(S.rows.map(r=>def.get(r)))].filter(x=>x!==null&&x!==undefined&&x!==''&&x!=='—');
+    vals.sort(def.numeric ? (a,b)=>a-b : undefined);
+    const list=$('#msel_'+def.key+'_list');
+    const sel=S.filters[def.key];
+    list.innerHTML = vals.map(v=>{
+      const sv=String(v);
+      const label = def.key==='store' ? `${v} — ${storeNameMap[v]||''}` : sv;
+      const checked = sel.has(sv) ? 'checked' : '';
+      return `<label class="msel-item"><input type="checkbox" data-key="${def.key}" value="${esc(sv)}" ${checked}><span>${esc(label)}</span></label>`;
+    }).join('') || '<div class="msel-empty">ไม่มีข้อมูล</div>';
+    updateMselButton(def.key);
+  });
+}
+
+/* ---------- page navigation (Sales / Stock) ---------- */
+function applyPage(){
+  const p=S.page;
+  $('#pageSales').classList.toggle('hide', p!=='sales');
+  $('#pageStock').classList.toggle('hide', p!=='stock');
+  // the Daily/MTD/YTD toggle only shapes the sales views; stock/aging are snapshot-based, so hide it there
+  $('#seg').classList.toggle('hide', p!=='sales');
+  document.querySelectorAll('#pagenav button').forEach(b=>b.classList.toggle('active', b.dataset.page===p));
+}
+/* ---------- boot / events ---------- */
+function showDash(){
+  $('#emptyState').classList.add('hide');
+  $('#dash').classList.remove('hide');
+  $('#exportBtn').classList.remove('hide');
+  $('#clearBtn').classList.remove('hide');
+  $('#uploadStockBtn').classList.remove('hide');
+  $('#downloadTargetBtn').classList.remove('hide');
+  $('#uploadTargetBtn').classList.remove('hide');
+  const min=S.rows.reduce((a,r)=>r.k<a.k?r:a), max=S.rows.reduce((a,r)=>r.k>a.k?r:a);
+  if(!S.refDate) S.refDate=max.d;
+  // default custom range: last 7 days ending at the latest data date
+  if(!S.rangeTo) S.rangeTo=max.d;
+  if(!S.rangeFrom){ const a=new Date(max.d); a.setDate(a.getDate()-6); S.rangeFrom=a<min.d?min.d:a; }
+  const lo=iso(min.d), hi=iso(max.d);
+  $('#refDate').min=lo; $('#refDate').max=hi; $('#refDate').value=iso(S.refDate);
+  $('#rangeFrom').min=lo; $('#rangeFrom').max=hi; $('#rangeFrom').value=iso(S.rangeFrom);
+  $('#rangeTo').min=lo; $('#rangeTo').max=hi; $('#rangeTo').value=iso(S.rangeTo);
+  $('#asof').textContent='ข้อมูล '+iso(min.d)+' → '+iso(max.d)+' • ณ วันที่ '+iso(S.refDate);
+  applyDateInputs(); buildFilters(); applyPage(); renderAll();
+}
+// show the as-of date in Daily/MTD/YTD, or the from–to range inputs in Custom; sync the active tab
+function applyDateInputs(){
+  const custom=S.view==='custom';
+  $('#refDateFld').classList.toggle('hide', custom);
+  $('#rangeFromFld').classList.toggle('hide', !custom);
+  $('#rangeToFld').classList.toggle('hide', !custom);
+  [...$('#seg').children].forEach(x=>x.classList.toggle('active', x.dataset.v===S.view));
+}
+function handleFile(file){
+  const rd=new FileReader();
+  rd.onload=e=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});
+      const rows=parseWorkbook(wb);
+      S.rows=rows; S.refDate=null; S.agingRows=rows._aging||[];
+      FILTER_DEFS.forEach(f=>S.filters[f.key]=new Set());
+      const notes=[];
+      if(rows.every(r=>r.gp===0)) notes.push('ไม่พบคอลัมน์กำไร (Margin_Value) — ตัวเลข GP จะเป็น 0');
+      if(!S.hasBillCount) notes.push('ไม่พบคอลัมน์ Bill Count — จำนวนบิลจะนับจากเลขที่ใบเสร็จ (Receipt_No) ที่ไม่ซ้ำแทน');
+      if(rows._skippedStock) notes.push(`แถวสต็อก (Source = STOCK) ${rows._skippedStock.toLocaleString()} แถว — ในนั้นมีสินค้าติดแฟล็ก Aging ${S.agingRows.length.toLocaleString()} แถว ใช้ในหน้า 📦 สต็อก & Aging`);
+      if(notes.length){ $('#warnbar').textContent='หมายเหตุ: '+notes.join(' • '); $('#warnbar').classList.remove('hide'); }
+      else $('#warnbar').classList.add('hide');
+      showDash(); save(); syncSalesUp(); syncAgingUp();
+    }catch(err){ alert('เปิดไฟล์ไม่สำเร็จ: '+err.message); }
+  };
+  rd.readAsArrayBuffer(file);
+}
+function handleStockFile(file){
+  if(!S.rows.length){ alert('กรุณาอัปโหลดไฟล์ยอดขายก่อน แล้วค่อยอัปโหลดไฟล์สต็อก'); return; }
+  const rd=new FileReader();
+  rd.onload=e=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      const rows=parseStockWorkbook(wb);
+      S.stockRows=rows; S.stockAsOf=rows._asOf;
+      // scope to NATGEO + GOODR as requested — easily changed anytime via the แบรนด์ filter above
+      const brands=new Set(rows.map(r=>r.br));
+      const targetBrands=['NATGEO','GOODR'].filter(b=>brands.has(b));
+      if(targetBrands.length) S.filters.brand=new Set(targetBrands);
+      buildFilters(); renderAll(); save(); syncStockUp();
+    }catch(err){ alert('เปิดไฟล์สต็อกไม่สำเร็จ: '+err.message); }
+  };
+  rd.readAsArrayBuffer(file);
+}
+function handleTargetFile(file){
+  if(!S.rows.length){ alert('กรุณาอัปโหลดไฟล์ยอดขายก่อน แล้วค่อยอัปโหลดไฟล์เป้าหมาย'); return; }
+  const rd=new FileReader();
+  rd.onload=e=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      S.targets=parseTargetWorkbook(wb);
+      renderAll(); save(); syncTargetsUp();
+    }catch(err){ alert('เปิดไฟล์เป้าหมายไม่สำเร็จ: '+err.message); }
+  };
+  rd.readAsArrayBuffer(file);
+}
+
+$('#uploadBtn').onclick=()=>$('#file').click();
+$('#file').onchange=e=>{ if(e.target.files[0]) handleFile(e.target.files[0]); };
+$('#uploadStockBtn').onclick=()=>$('#stockFile').click();
+$('#stockFile').onchange=e=>{ if(e.target.files[0]) handleStockFile(e.target.files[0]); };
+$('#downloadTargetBtn').onclick=()=>downloadTargetTemplate();
+$('#uploadTargetBtn').onclick=()=>$('#targetFile').click();
+$('#targetFile').onchange=e=>{ if(e.target.files[0]) handleTargetFile(e.target.files[0]); };
+$('#signInBtn').onclick=()=>window.fb.signIn();
+$('#signOutBtn').onclick=()=>window.fb.signOutUser();
+$('#refreshBtn').onclick=async()=>{
+  // explicit user action, so unlike sign-in this always pulls and overwrites the local view —
+  // that's the whole point of the button (pull whatever was just uploaded from another device)
+  const btn=$('#refreshBtn'); btn.disabled=true;
+  await pullAllFromCloud();
+  btn.disabled=false;
+};
+const drop=$('#drop');
+drop.onclick=()=>$('#file').click();
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hover');}));
+drop.addEventListener('drop',e=>{ if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+
+$('#seg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b)return;
+  [...$('#seg').children].forEach(x=>x.classList.remove('active')); b.classList.add('active');
+  S.view=b.dataset.v; applyDateInputs(); renderAll(); save(); });
+$('#pagenav').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b)return;
+  S.page=b.dataset.page; applyPage();
+  // Chart.js sizes to its container; charts drawn while their page was hidden come out 0px,
+  // so re-render once the target page is visible (also refreshes the newly shown page's data)
+  renderAll(); save();
+  window.scrollTo({top:0,behavior:'smooth'});
+});
+$('#refDate').onchange=e=>{ S.refDate=parseDate(e.target.value)||S.refDate; $('#asof').textContent=$('#asof').textContent.replace(/ณ วันที่ .*/,'ณ วันที่ '+iso(S.refDate)); renderAll(); save(); };
+$('#rangeFrom').onchange=e=>{ S.rangeFrom=parseDate(e.target.value)||S.rangeFrom; renderAll(); save(); };
+$('#rangeTo').onchange=e=>{ S.rangeTo=parseDate(e.target.value)||S.rangeTo; renderAll(); save(); };
+$('#clearBtn').onclick=()=>{ if(confirm('ล้างข้อมูลทั้งหมด?')){ localStorage.removeItem(LSKEY); location.reload(); } };
+$('#exportBtn').onclick=()=>{
+  html2canvas($('#dash'),{backgroundColor:getComputedStyle(document.body).backgroundColor,scale:2}).then(cv=>{
+    const a=document.createElement('a'); a.download='sales-dashboard-'+iso(S.refDate)+'.png'; a.href=cv.toDataURL('image/png'); a.click();
+  });
+};
+window.matchMedia('(prefers-color-scheme:dark)').addEventListener('change',()=>{ if(!$('#dash').classList.contains('hide')) renderAll(); });
+
+// init filter UI, then restore saved session
+initFilterUI();
+if(load()) showDash();
+
+// PWA
+if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
+</script>
+</body>
+</html>
