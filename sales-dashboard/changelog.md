@@ -12,6 +12,44 @@ Snapshot สมบูรณ์ที่รันได้ของแต่ล�
 
 ---
 
+## v1.6.0
+
+- **Date:** 2026-09-17
+- **Status:** 🧪 TESTING (รอผู้ใช้ยืนยัน "ใช้งานได้")
+- **Snapshot:** `versions/v1.6.0/` (index.html, sw.js, manifest.json, icon.svg)
+- **Rollback:** v1.5.0 (`versions/v1.5.0/` หรือ commit `7c14096`)
+- **Files:** index.html, sw.js (cache `sales-dash-v17`), manifest.json, icon.svg
+
+### Store Type Library — เติมประเภทร้านให้ไฟล์ที่ไม่มีคอลัมน์ Store Type
+- **ปัญหาเดิม:** ไฟล์ Mer-Raw ไม่มีคอลัมน์ Store Type → กราฟ/ตาราง "ราย Store Type" รวมเป็นกลุ่มเดียว ("—")
+- **แก้เป็น:** ฝัง `STORE_TYPE_LIB` (Store_Code → Store Type, 164 ร้าน จาก mapping ที่ผู้ใช้ส่งมา)
+  แล้วเติมให้ทุกแถวตอนอ่านไฟล์ผ่าน `storeTypeOf(code, fileVal)`
+  - **ลำดับความสำคัญ:** ถ้าไฟล์มีคอลัมน์ Store Type และไม่ว่าง → ใช้ค่าจากไฟล์ก่อน;
+    ถ้าไม่มี → ดึงจาก Library; ถ้าไม่พบรหัสใน Library → "—"
+  - ใช้กับทั้งแถวขายและแถว aging (Source=STOCK)
+- **ประเภทที่ใช้ (ผู้ใช้กำหนด):** Shop, SIS, Rev Runnr, Rev Lifestyle, Outlet, ECOM, WHS, WH, Event
+- **การอัปเดต Library:** แก้ในบล็อก `STORE_TYPE_LIB` ใน index.html (มีคอมเมนต์กำกับ) — ร้านเปลี่ยนน้อย
+
+### ✅ ผลตรวจสอบกับไฟล์จริง (Mer-Raw 16.09.2026)
+| Store Type | ยอดขาย (Excl VAT) | จำนวนร้าน |
+|---|---|---|
+| ECOM | ฿17,706,615 | 19 |
+| Rev Runnr | ฿16,864,671 | 37 |
+| Shop | ฿15,575,822 | 28 |
+| WHS | ฿6,058,930 | 7 |
+| Outlet | ฿4,532,806 | 6 |
+| SIS | ฿952,844 | 16 |
+| Rev Lifestyle | ฿927,422 | 5 |
+| Event | ฿51,336 | 1 |
+| **รวม** | **฿62,670,445** | **119** |
+
+- ร้านที่มียอดขายทั้งหมด mapped ครบ — **ไม่มีร้านประเภท "—"** (unknown = 0)
+- WH (คลัง/HQ) ไม่มียอดขายในไฟล์นี้จึงไม่ปรากฏ (ปกติ)
+- **ไม่ใช่ KPI definition change** — เป็นการเติม dimension (การจัดกลุ่ม) เท่านั้น ไม่กระทบสูตรคำนวณ
+- **Regression:** ไฟล์เก่า (มีคอลัมน์ Store.Type เอง) net คงที่ `฿27,053,060`, errors NONE
+
+---
+
 ## v1.5.0
 
 - **Date:** 2026-09-17
