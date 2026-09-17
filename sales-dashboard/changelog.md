@@ -15,7 +15,7 @@ Snapshot สมบูรณ์ที่รันได้ของแต่ล�
 ## v1.6.0
 
 - **Date:** 2026-09-17
-- **Status:** 🧪 TESTING (รอผู้ใช้ยืนยัน "ใช้งานได้")
+- **Status:** ✅ STABLE (ผู้ใช้ยืนยัน "ใช้ได้" 2026-09-17)
 - **Snapshot:** `versions/v1.6.0/` (index.html, sw.js, manifest.json, icon.svg)
 - **Rollback:** v1.5.0 (`versions/v1.5.0/` หรือ commit `7c14096`)
 - **Files:** index.html, sw.js (cache `sales-dash-v17`), manifest.json, icon.svg
@@ -53,7 +53,7 @@ Snapshot สมบูรณ์ที่รันได้ของแต่ล�
 ## v1.5.0
 
 - **Date:** 2026-09-17
-- **Status:** 🧪 TESTING (รอผู้ใช้ยืนยัน "ใช้งานได้")
+- **Status:** ✅ STABLE (ผู้ใช้ยืนยัน "ใช้ได้" 2026-09-17)
 - **Snapshot:** `versions/v1.5.0/` (index.html, sw.js, manifest.json, icon.svg)
 - **Rollback:** v1.4.0 (`versions/v1.4.0/` หรือ commit `cf8ae7e`)
 - **Files:** index.html, sw.js (cache `sales-dash-v16`), manifest.json, icon.svg
