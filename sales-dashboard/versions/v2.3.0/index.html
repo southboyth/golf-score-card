@@ -687,11 +687,17 @@ function fixSheetRefs(wb){
   for(const name of wb.SheetNames){
     const ws=wb.Sheets[name]; if(!ws) continue;
     let minr=Infinity,minc=Infinity,maxr=-1,maxc=-1,cells=0;
-    for(const k in ws){
-      if(k[0]==='!') continue;
-      let cell; try{ cell=XLSX.utils.decode_cell(k); }catch(e){ continue; }
-      if(cell.r<minr)minr=cell.r; if(cell.c<minc)minc=cell.c;
-      if(cell.r>maxr)maxr=cell.r; if(cell.c>maxc)maxc=cell.c; cells++;
+    if(ws['!data']){                       // dense mode: cells live in the !data 2-D array, not keys
+      const data=ws['!data'];
+      for(let r=0;r<data.length;r++){ const row=data[r]; if(!row) continue;
+        for(let c=0;c<row.length;c++){ if(row[c]!=null){ if(r<minr)minr=r; if(r>maxr)maxr=r; if(c<minc)minc=c; if(c>maxc)maxc=c; cells++; } } }
+    }else{
+      for(const k in ws){
+        if(k[0]==='!') continue;
+        let cell; try{ cell=XLSX.utils.decode_cell(k); }catch(e){ continue; }
+        if(cell.r<minr)minr=cell.r; if(cell.c<minc)minc=cell.c;
+        if(cell.r>maxr)maxr=cell.r; if(cell.c>maxc)maxc=cell.c; cells++;
+      }
     }
     if(cells>0){
       const newRef=XLSX.utils.encode_range({s:{r:Math.max(0,minr),c:Math.max(0,minc)},e:{r:maxr,c:maxc}});
@@ -701,12 +707,18 @@ function fixSheetRefs(wb){
     }
   }
 }
+// read only the first n rows of a sheet (cheap header detection instead of parsing the whole sheet)
+function firstRows(ws,n){
+  if(!ws || !ws['!ref']) return null;
+  let rng; try{ rng=XLSX.utils.decode_range(ws['!ref']); }catch(e){ return null; }
+  const e={r:Math.min(rng.e.r, rng.s.r+n-1), c:rng.e.c};
+  try{ return XLSX.utils.sheet_to_json(ws,{header:1,defval:null,range:{s:rng.s,e}}); }catch(err){ return null; }
+}
 function pickSheet(wb){
   let best=null,bestScore=-1;
   for(const name of wb.SheetNames){
-    const ws=wb.Sheets[name];
-    let arr; try{ arr=XLSX.utils.sheet_to_json(ws,{header:1,range:0,defval:null}); }catch(e){ continue; }
-    for(let r=0;r<Math.min(HEADER_SCAN_ROWS,arr.length);r++){
+    const arr=firstRows(wb.Sheets[name],HEADER_SCAN_ROWS); if(!arr) continue;
+    for(let r=0;r<arr.length;r++){
       const cells=(arr[r]||[]).map(normHeader);
       let score=0;
       for(const k of ['date','net','qty','model']) if(ALIAS[k].some(a=>cells.includes(normHeader(a)))) score++;
@@ -749,7 +761,7 @@ function parseWorkbook(wb){
   const get=(row,k)=> map[k]!=null?row[map[k]]:null;
   // auto-detect dd/mm vs mm/dd for this file's date column (ISO & Excel serials are unaffected) so
   // day>12 rows are not silently dropped and day/month are not swapped
-  { const ds=[]; for(let r=pick.headerRow+1;r<arr.length;r++){ const row=arr[r]; if(row) ds.push(get(row,'date')); } DATE_ORDER=detectDateOrder(ds); }
+  { const ds=[]; for(let r=pick.headerRow+1;r<arr.length && ds.length<5000;r++){ const row=arr[r]; if(row){ const d=get(row,'date'); if(d!=null) ds.push(d); } } DATE_ORDER=detectDateOrder(ds); }
   const out=[], aging=[]; let skippedStock=0, skippedSeed=0;
   for(let r=pick.headerRow+1;r<arr.length;r++){
     const row=arr[r]; if(!row) continue;
@@ -2291,8 +2303,12 @@ async function handleFiles(fileList){
     await yield_();
     try{
       const buf=await readArrayBuffer(file);
-      const wb=XLSX.read(new Uint8Array(buf),{type:'array',cellDates:true});
-      const rows=parseWorkbook(wb);
+      const u8=new Uint8Array(buf);
+      // dense mode parses large sheets ~25x faster and with less memory (40MB files need it);
+      // if a file fails in dense mode, fall back to the plain read before giving up
+      let rows;
+      try{ rows=parseWorkbook(XLSX.read(u8,{type:'array',cellDates:true,dense:true})); }
+      catch(errDense){ rows=parseWorkbook(XLSX.read(u8,{type:'array',cellDates:true})); }
       const keys=mergeUploadedMonths(rows);          // ascending YYYY-MM for this file
       keys.forEach(k=>allKeys.add(k));
       const maxK=keys[keys.length-1];
@@ -2325,7 +2341,7 @@ function handleStockFile(file){
   const rd=new FileReader();
   rd.onload=e=>{
     try{
-      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',dense:true});
       const rows=parseStockWorkbook(wb);
       S.stockRows=rows; S.stockAsOf=rows._asOf;
       // scope to NATGEO + GOODR as requested — easily changed anytime via the แบรนด์ filter above
