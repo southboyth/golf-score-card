@@ -15,7 +15,7 @@ Snapshot สมบูรณ์ที่รันได้ของแต่ล�
 ## v2.8.0
 
 - **Date:** 2026-09-18
-- **Status:** 🧪 TESTING (ทดสอบด้วย Playwright headless ผ่านหมดแล้ว — รอผู้ใช้ยืนยัน "ใช้งานได้" ก่อนมาร์ก STABLE)
+- **Status:** ✅ STABLE (ผู้ใช้ยืนยัน "ใช้งานได้" 2026-09-18) — เวอร์ชันปัจจุบันบนเว็บจริง
 - **Snapshot:** `versions/v2.8.0/` — **Rollback:** v2.7.1 (`versions/v2.7.1/`)
 - **Files:** index.html, sw.js (cache `sales-dash-v35`), manifest.json, icon.svg
 
@@ -50,7 +50,7 @@ Snapshot สมบูรณ์ที่รันได้ของแต่ล�
 ## v2.7.1
 
 - **Date:** 2026-09-18
-- **Status:** ✅ STABLE (ผู้ใช้ยืนยัน "ใช้งานได้" 2026-09-18) — เวอร์ชันปัจจุบันบนเว็บจริง (v2.8.0 อยู่ระหว่างทดสอบ)
+- **Status:** ✅ STABLE (ผู้ใช้ยืนยัน "ใช้งานได้" 2026-09-18) — ถูกแทนที่ด้วย v2.8.0 บนเว็บจริงแล้ว (เก็บไว้เผื่อ rollback)
 - **Snapshot:** `versions/v2.7.1/` — **Rollback:** v2.7.0 (`versions/v2.7.0/`)
 - **Files:** index.html, sw.js (cache `sales-dash-v34`), manifest.json, icon.svg
 
