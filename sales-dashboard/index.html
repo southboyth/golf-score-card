@@ -176,16 +176,13 @@ tr.total-row td:first-child{color:var(--brand)}
       <div class="sub" id="asof">ยังไม่มีข้อมูล — อัปโหลดไฟล์เพื่อเริ่มต้น</div>
     </div>
     <div class="toolbar">
-      <input type="file" id="file" accept=".xlsx,.xls,.csv" class="hide" multiple>
+      <input type="file" id="file" accept=".xlsx,.xls,.csv" class="hide">
       <button class="btn primary" id="uploadBtn">⬆️ อัปโหลดไฟล์ยอดขาย</button>
       <input type="file" id="stockFile" accept=".xlsx,.xls,.csv" class="hide">
       <button class="btn hide" id="uploadStockBtn">📦 อัปโหลดไฟล์สต็อก</button>
       <button class="btn hide" id="downloadTargetBtn">📄 ดาวน์โหลด Template เป้าหมาย</button>
       <input type="file" id="targetFile" accept=".xlsx,.xls,.csv" class="hide">
       <button class="btn hide" id="uploadTargetBtn">🎯 อัปโหลดไฟล์เป้าหมาย</button>
-      <button class="btn hide" id="downloadStoreTypeBtn">🏷️ Template ประเภทร้าน</button>
-      <input type="file" id="storeTypeFile" accept=".xlsx,.xls,.csv" class="hide">
-      <button class="btn hide" id="uploadStoreTypeBtn">🏷️ อัปโหลดประเภทร้าน</button>
       <button class="btn hide" id="exportBtn">🖼️ บันทึกรูป</button>
       <button class="btn hide" id="clearBtn">🗑️ ล้างข้อมูล</button>
     </div>
@@ -196,8 +193,8 @@ tr.total-row td:first-child{color:var(--brand)}
     <div class="drop" id="drop">
       <div class="empty">
         <div class="big">📈</div>
-        <div style="font-size:17px;font-weight:800;color:var(--text)">ลากไฟล์ Excel มาวาง หรือกดเพื่อเลือกไฟล์ (เลือกได้หลายไฟล์พร้อมกัน)</div>
-        <div style="margin-top:8px">รองรับ .xlsx / .xls / .csv ที่ export จาก SharePoint — เลือกหลายไฟล์รายเดือนทีเดียวได้ ระบบจะแยกเดือนและจับคู่คอลัมน์ให้อัตโนมัติ</div>
+        <div style="font-size:17px;font-weight:800;color:var(--text)">ลากไฟล์ Excel มาวาง หรือกดเพื่อเลือกไฟล์</div>
+        <div style="margin-top:8px">รองรับ .xlsx / .xls / .csv ที่ export จาก SharePoint — ระบบจะหา sheet ยอดขายและจับคู่คอลัมน์ให้อัตโนมัติ</div>
         <div style="margin-top:14px"><span class="pill">ประมวลผลในเครื่องคุณ 100% • ข้อมูลไม่ถูกส่งออกไปไหน</span></div>
       </div>
     </div>
@@ -554,20 +551,12 @@ const STORE_TYPE_LIB = {
   "W-RT-RR":"WH","W-RT-SC":"WH","W-RT-SL":"WH","W-RT-TE":"WH","W-SA":"WH","W-WS-GD":"WH","W-WS-HK":"WH",
   "W-WS-RR":"WH","W-WS-SC":"WH","W-WS-TE":"WH"
 };
-// Priority: file's own Store Type column (if present & non-empty) > user-uploaded library
-// (S.storeTypeLib, editable in-app) > embedded default (STORE_TYPE_LIB) > '—'
+// file's own Store Type column wins when present & non-empty; otherwise use the library; else '—'
 function storeTypeOf(code, fileVal){
   const fv = fileVal!=null ? String(fileVal).trim() : '';
   if(fv && fv!=='—' && fv!=='-') return fv;
   const c = code!=null ? String(code).trim() : '';
-  return (S.storeTypeLib&&S.storeTypeLib[c]) || STORE_TYPE_LIB[c] || '—';
-}
-// recompute r.stp on every loaded row after the Store Type library changes (uploaded rows carry a
-// stp computed at their upload time, so refresh them from the current library)
-function reapplyStoreTypes(){
-  for(const k in S.byMonth){ for(const r of S.byMonth[k]) r.stp=storeTypeOf(r.st, null); }
-  for(const r of (S.agingRows||[])) r.stp=storeTypeOf(r.st, null);
-  rebuildActiveRows();
+  return STORE_TYPE_LIB[c] || '—';
 }
 
 /* ---------- aging flag (Flag_O) ---------- */
@@ -596,9 +585,7 @@ const S = { rows:[], refDate:null, rangeFrom:null, rangeTo:null, view:'ytd', pag
   // multi-month store: byMonth[key] = decoded sales rows for that month; monthMeta[key] = {rows,net}
   // for the picker without loading data; selMonths = currently selected month keys; stockMonth = the
   // month that owns the current stock/aging snapshot (only the latest month keeps stock/aging)
-  byMonth:{}, monthMeta:{}, selMonths:[], stockMonth:null,
-  // user-uploaded Store Type overrides (Store_Code -> type); takes priority over the embedded default
-  storeTypeLib:{} };
+  byMonth:{}, monthMeta:{}, selMonths:[], stockMonth:null };
 let cloudUser=null;
 FILTER_DEFS.forEach(f=>S.filters[f.key]=new Set());
 const $ = s => document.querySelector(s);
@@ -690,78 +677,31 @@ const parseDMY = v => {
 };
 
 /* ---------- parse workbook ---------- */
-// normalize a header cell for tolerant matching: strip zero-width / BOM chars, collapse whitespace,
-// trim, lowercase — so "Sale_Date", "sale_date ", "Sale_Date​", NBSP variants all match
-function normHeader(s){ return String(s==null?'':s).replace(/[​‌‍﻿]/g,'').replace(/\s+/g,' ').trim().toLowerCase(); }
-const HEADER_SCAN_ROWS=40; // some exports (e.g. "UnFinal") have title/filter rows above the header
-// Some exports omit or under-declare the sheet's used range (!ref), so SheetJS reads the sheet as
-// empty even though the cells are present. Recompute !ref from the actual cell addresses.
-function fixSheetRefs(wb){
-  for(const name of wb.SheetNames){
-    const ws=wb.Sheets[name]; if(!ws) continue;
-    let minr=Infinity,minc=Infinity,maxr=-1,maxc=-1,cells=0;
-    if(ws['!data']){                       // dense mode: cells live in the !data 2-D array, not keys
-      const data=ws['!data'];
-      for(let r=0;r<data.length;r++){ const row=data[r]; if(!row) continue;
-        for(let c=0;c<row.length;c++){ if(row[c]!=null){ if(r<minr)minr=r; if(r>maxr)maxr=r; if(c<minc)minc=c; if(c>maxc)maxc=c; cells++; } } }
-    }else{                                 // sparse mode: cells are address-keyed
-      for(const k in ws){
-        if(k[0]==='!') continue;
-        let cell; try{ cell=XLSX.utils.decode_cell(k); }catch(e){ continue; }
-        if(cell.r<minr)minr=cell.r; if(cell.c<minc)minc=cell.c;
-        if(cell.r>maxr)maxr=cell.r; if(cell.c>maxc)maxc=cell.c; cells++;
-      }
-    }
-    if(cells>0){
-      const newRef=XLSX.utils.encode_range({s:{r:Math.max(0,minr),c:Math.max(0,minc)},e:{r:maxr,c:maxc}});
-      const cur=ws['!ref'];
-      if(!cur) ws['!ref']=newRef;
-      else{ try{ const cr=XLSX.utils.decode_range(cur); if(cr.e.r<maxr||cr.e.c<maxc||cr.s.r>minr||cr.s.c>minc) ws['!ref']=newRef; }catch(e){ ws['!ref']=newRef; } }
-    }
-  }
-}
-// read only the first n rows of a sheet (cheap header detection instead of parsing the whole sheet)
-function firstRows(ws,n){
-  if(!ws || !ws['!ref']) return null;
-  let rng; try{ rng=XLSX.utils.decode_range(ws['!ref']); }catch(e){ return null; }
-  const e={r:Math.min(rng.e.r, rng.s.r+n-1), c:rng.e.c};
-  return XLSX.utils.sheet_to_json(ws,{header:1,defval:null,range:{s:rng.s,e}});
-}
 function pickSheet(wb){
   let best=null,bestScore=-1;
   for(const name of wb.SheetNames){
-    const arr=firstRows(wb.Sheets[name],HEADER_SCAN_ROWS); if(!arr) continue;
-    for(let r=0;r<arr.length;r++){
-      const cells=(arr[r]||[]).map(normHeader);
+    const ws=wb.Sheets[name];
+    const arr=XLSX.utils.sheet_to_json(ws,{header:1,range:0,defval:null});
+    // find a header row within first 8 rows that contains known cols
+    for(let r=0;r<Math.min(8,arr.length);r++){
+      const cells=(arr[r]||[]).map(x=>String(x||'').trim());
       let score=0;
-      for(const k of ['date','net','qty','model']) if(ALIAS[k].some(a=>cells.includes(normHeader(a)))) score++;
+      for(const k of ['date','net','qty','model']) if(ALIAS[k].some(a=>cells.includes(a))) score++;
       if(score>bestScore){ bestScore=score; best={name,headerRow:r}; }
     }
   }
   return bestScore>=2?best:null;
 }
 function mapCols(headers){
-  const hn=headers.map(normHeader);
+  const hn=headers.map(h=>String(h||'').trim());
   const map={};
-  // respect alias PRIORITY (first alias in list wins, not first column); tolerant name matching
-  for(const k in ALIAS){ for(const a of ALIAS[k]){ const i=hn.indexOf(normHeader(a)); if(i>=0){ map[k]=i; break; } } }
+  // respect alias PRIORITY (first alias in list wins, not first column)
+  for(const k in ALIAS){ for(const a of ALIAS[k]){ const i=hn.indexOf(a); if(i>=0){ map[k]=i; break; } } }
   return map;
 }
 function parseWorkbook(wb){
-  let pick=pickSheet(wb);
-  if(!pick){ fixSheetRefs(wb); pick=pickSheet(wb); } // only repair !ref if detection failed (costly scan)
-  if(!pick){
-    // diagnostic: report what we actually saw so the file can be fixed remotely without uploading it
-    let diag='';
-    try{
-      const s0=wb.SheetNames[0]; const ws0=wb.Sheets[s0];
-      let cells=0; for(const k in ws0){ if(k[0]!=='!') cells++; }
-      const a0=XLSX.utils.sheet_to_json(ws0,{header:1,defval:null});
-      const firstRow=(a0.find(r=>r&&r.some(c=>c!=null))||[]).slice(0,15).map(c=>String(c==null?'':c)).join(' | ');
-      diag=` [sheets: ${wb.SheetNames.join(', ')} • !ref=${ws0['!ref']||'ไม่มี'} • cells=${cells} • แถวแรก: ${firstRow||'(ว่าง)'}]`;
-    }catch(e){}
-    throw new Error('ไม่พบ sheet ที่มีคอลัมน์ยอดขาย (ต้องมีอย่างน้อย Sale_Date และ Netsale)'+diag);
-  }
+  const pick=pickSheet(wb);
+  if(!pick) throw new Error('ไม่พบ sheet ที่มีคอลัมน์ยอดขาย (ต้องมีอย่างน้อย Sale_Date และ Netsale)');
   const ws=wb.Sheets[pick.name];
   const arr=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true,cellDates:true});
   const headers=arr[pick.headerRow];
@@ -772,9 +712,9 @@ function parseWorkbook(wb){
   // line, -1 for a return, 0 on extra lines); sum it when present, else fall back to distinct receipts
   S.hasBillCount = map.billCnt!=null;
   const get=(row,k)=> map[k]!=null?row[map[k]]:null;
-  // auto-detect dd/mm vs mm/dd from a sample of date values (ISO & Excel serials unaffected) so
+  // auto-detect dd/mm vs mm/dd for this file's date column (ISO & Excel serials are unaffected) so
   // day>12 rows are not silently dropped and day/month are not swapped
-  { const ds=[]; for(let r=pick.headerRow+1;r<arr.length && ds.length<5000;r++){ const row=arr[r]; if(row){ const d=get(row,'date'); if(d!=null) ds.push(d); } } DATE_ORDER=detectDateOrder(ds); }
+  { const ds=[]; for(let r=pick.headerRow+1;r<arr.length;r++){ const row=arr[r]; if(row) ds.push(get(row,'date')); } DATE_ORDER=detectDateOrder(ds); }
   const out=[], aging=[]; let skippedStock=0, skippedSeed=0;
   for(let r=pick.headerRow+1;r<arr.length;r++){
     const row=arr[r]; if(!row) continue;
@@ -903,66 +843,6 @@ function downloadTargetTemplate(){
   XLSX.utils.book_append_sheet(wb, ws, 'Target');
   XLSX.writeFile(wb, 'sales-target-template-'+year+'.xlsx');
 }
-/* ---------- Store Type library: user-editable download / upload ---------- */
-// export every store code seen (across all months + aging) pre-filled with its current type, so the
-// user edits the file and re-uploads it
-function downloadStoreTypeTemplate(){
-  const nameMap={}, codes=new Set();
-  const addFrom=arr=>{ for(const r of arr){ codes.add(r.st); if(!nameMap[r.st]) nameMap[r.st]=r.stn||r.st; } };
-  for(const k in S.byMonth) addFrom(S.byMonth[k]);
-  addFrom(S.agingRows||[]);
-  if(!codes.size) S.rows.forEach(r=>{ codes.add(r.st); if(!nameMap[r.st]) nameMap[r.st]=r.stn||r.st; });
-  const list=[...codes].sort();
-  const header=['Store_Code','Store_Name','Store_Type'];
-  const data=[header, ...list.map(c=>[c, nameMap[c]||c, storeTypeOf(c,null)])];
-  const ws=XLSX.utils.aoa_to_sheet(data);
-  ws['!cols']=[{wch:12},{wch:42},{wch:16}];
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'StoreType');
-  XLSX.writeFile(wb, 'store-type-library.xlsx');
-}
-function parseStoreTypeWorkbook(wb){
-  let pick=null;
-  for(const name of wb.SheetNames){
-    const ws=wb.Sheets[name];
-    const arr=XLSX.utils.sheet_to_json(ws,{header:1,range:0,defval:null});
-    for(let r=0;r<Math.min(6,arr.length);r++){
-      const cells=(arr[r]||[]).map(x=>String(x||'').trim());
-      if(cells.some(c=>ALIAS.store.includes(c)) && cells.some(c=>ALIAS.storeT.includes(c))){ pick={name,headerRow:r}; break; }
-    }
-    if(pick) break;
-  }
-  if(!pick) throw new Error('ไม่พบคอลัมน์ Store_Code และ Store_Type ในไฟล์');
-  const ws=wb.Sheets[pick.name];
-  const arr=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
-  const headers=arr[pick.headerRow].map(h=>String(h||'').trim());
-  const ci=k=>{ for(const a of ALIAS[k]){ const i=headers.indexOf(a); if(i>=0) return i; } return -1; };
-  const cCode=ci('store'), cType=ci('storeT');
-  const map={};
-  for(let r=pick.headerRow+1;r<arr.length;r++){
-    const row=arr[r]; if(!row) continue;
-    const code=String(row[cCode]||'').trim(), type=String(row[cType]||'').trim();
-    if(code && type && type!=='—' && type!=='-') map[code]=type;
-  }
-  return map;
-}
-function handleStoreTypeFile(file){
-  const rd=new FileReader();
-  rd.onload=e=>{
-    try{
-      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
-      const map=parseStoreTypeWorkbook(wb);
-      const n=Object.keys(map).length;
-      if(!n){ alert('ไม่พบข้อมูลประเภทร้านในไฟล์ (ต้องมีคอลัมน์ Store_Code และ Store_Type)'); return; }
-      Object.assign(S.storeTypeLib, map); // merge: add/update these codes, keep the rest
-      if(S.rows.length){ reapplyStoreTypes(); buildFilters(); renderAll(); }
-      save(); syncStoreTypesUp();
-      $('#warnbar').textContent=`อัปเดตประเภทร้าน ${n} ร้านจากไฟล์ • Library ใช้งานอยู่ ${Object.keys(S.storeTypeLib).length} ร้าน (แทนที่ค่าเดิมของรหัสที่ซ้ำ)`;
-      $('#warnbar').classList.remove('hide');
-    }catch(err){ alert('เปิดไฟล์ Store Type ไม่สำเร็จ: '+err.message); }
-  };
-  rd.readAsArrayBuffer(file);
-}
 function parseTargetWorkbook(wb){
   let pick=null;
   for(const name of wb.SheetNames){
@@ -1033,8 +913,7 @@ function save(){
       agingRows:S.agingRows.map(encodeAgingRow),
       // multi-month: rows above are the ACTIVE selection; keep the picker state + all-months meta
       // (small) so the bar lists every month; unloaded months reload from cloud on demand
-      selMonths:S.selMonths, monthMeta:S.monthMeta, stockMonth:S.stockMonth,
-      storeTypeLib:S.storeTypeLib
+      selMonths:S.selMonths, monthMeta:S.monthMeta, stockMonth:S.stockMonth
     });
     // gzip so multi-brand datasets fit the ~5MB localStorage quota (raw JSON can be 10MB+)
     let toStore=payload;
@@ -1055,7 +934,6 @@ function load(){
     Object.keys(S.byMonth).forEach(recomputeMonthMeta);
     S.selMonths = (o.selMonths&&o.selMonths.length) ? o.selMonths : Object.keys(S.byMonth);
     S.stockMonth = o.stockMonth || (Object.keys(S.byMonth).sort().pop()||null);
-    if(o.storeTypeLib) S.storeTypeLib=o.storeTypeLib;
     S.refDate=parseDate(o.ref);
     if(o.view) S.view=o.view;
     if(o.rangeFrom) S.rangeFrom=parseDate(o.rangeFrom);
@@ -1198,15 +1076,6 @@ async function syncAgingUp(){
   if(!cloudUser) return;
   try{ await pushCollectionToCloud(S.agingRows,'aging',encodeAgingRow,{}); }catch(err){ /* aging is best-effort */ }
 }
-async function syncStoreTypesUp(){
-  if(!cloudUser) return;
-  setSyncStatus('🔄 กำลังซิงค์ประเภทร้านขึ้นคลาวด์...');
-  try{
-    const {db,doc,setDoc}=window.fb;
-    await setDoc(doc(db,'company/main/meta','storeTypes'),{data:S.storeTypeLib,updatedAt:Date.now(),updatedBy:cloudUser.email});
-    setSyncStatus('☁️ ซิงค์ประเภทร้านแล้ว '+new Date().toLocaleTimeString('th-TH'));
-  }catch(err){ setSyncStatus('⚠️ ซิงค์ประเภทร้านไม่สำเร็จ: '+err.message); }
-}
 async function syncTargetsUp(){
   if(!cloudUser) return;
   setSyncStatus('🔄 กำลังซิงค์เป้าหมายขึ้นคลาวด์...');
@@ -1263,9 +1132,6 @@ async function pullAllFromCloud(){
     if(agingRes && agingRes.rows.length){ S.agingRows=agingRes.rows.map(decodeAgingRow); }
     const targetSnap=await getDoc(doc(db,'company/main/meta','targets'));
     if(targetSnap.exists() && targetSnap.data().data) S.targets=targetSnap.data().data;
-    // user Store Type library (editable) — load then re-apply so month rows reflect the latest types
-    const stSnap=await getDoc(doc(db,'company/main/meta','storeTypes'));
-    if(stSnap.exists() && stSnap.data().data){ S.storeTypeLib=stSnap.data().data; if(S.rows.length) reapplyStoreTypes(); }
     if(S.rows.length){ showDash(); renderMonthBar(); }
     save();
     setSyncStatus(S.rows.length?'☁️ ซิงค์จากคลาวด์แล้ว '+new Date().toLocaleTimeString('th-TH'):'☁️ เข้าสู่ระบบแล้ว — ยังไม่มีข้อมูลในคลาวด์ ลองอัปโหลดไฟล์ได้เลย');
@@ -2342,8 +2208,6 @@ function showDash(){
   $('#uploadStockBtn').classList.remove('hide');
   $('#downloadTargetBtn').classList.remove('hide');
   $('#uploadTargetBtn').classList.remove('hide');
-  $('#downloadStoreTypeBtn').classList.remove('hide');
-  $('#uploadStoreTypeBtn').classList.remove('hide');
   const min=S.rows.reduce((a,r)=>r.k<a.k?r:a), max=S.rows.reduce((a,r)=>r.k>a.k?r:a);
   if(!S.refDate) S.refDate=max.d;
   // default custom range: last 7 days ending at the latest data date
@@ -2364,66 +2228,46 @@ function applyDateInputs(){
   $('#rangeToFld').classList.toggle('hide', !custom);
   [...$('#seg').children].forEach(x=>x.classList.toggle('active', x.dataset.v===S.view));
 }
-function readArrayBuffer(file){
-  return new Promise((res,rej)=>{ const rd=new FileReader();
-    rd.onload=e=>res(e.target.result);
-    rd.onerror=()=>rej(new Error('อ่านไฟล์ไม่ได้')); rd.readAsArrayBuffer(file); });
-}
-// upload one OR many files at once. Each file's months REPLACE only those months (accumulate);
-// files are processed one after another so 23 monthly files can be dropped in together.
-async function handleFiles(fileList){
-  const files=[...(fileList||[])]; if(!files.length) return;
-  const allKeys=new Set(); const errFiles=[];
-  let seedTot=0, stockTot=0, agingAny=false, noBill=false, okCount=0;
-  const yield_=()=>new Promise(r=>setTimeout(r,0)); // let the browser repaint progress between files
-  let i=0;
-  for(const file of files){
-    i++;
-    $('#warnbar').textContent=`⏳ กำลังประมวลผลไฟล์ ${i}/${files.length}: ${file.name} ...`;
-    $('#warnbar').classList.remove('hide');
-    await yield_();
+function handleFile(file){
+  const rd=new FileReader();
+  rd.onload=e=>{
     try{
-      const buf=await readArrayBuffer(file);
-      const u8=new Uint8Array(buf);
-      // dense mode is ~25x faster at parsing large sheets (100k+ rows); if a file fails to parse
-      // in dense mode, fall back to the proven sparse read before giving up
-      let rows;
-      try{ rows=parseWorkbook(XLSX.read(u8,{type:'array',cellDates:true,dense:true})); }
-      catch(errDense){ rows=parseWorkbook(XLSX.read(u8,{type:'array',cellDates:true})); }
-      const keys=mergeUploadedMonths(rows);          // ascending YYYY-MM for this file
-      keys.forEach(k=>allKeys.add(k));
-      const maxK=keys[keys.length-1];
-      // keep stock/aging only from the newest month seen across all files
-      if(!S.stockMonth || maxK>=S.stockMonth){ S.agingRows=rows._aging||[]; S.stockMonth=maxK; agingAny=true; }
-      seedTot+=rows._skippedSeed||0; stockTot+=rows._skippedStock||0;
-      if(!S.hasBillCount) noBill=true; okCount++;
-    }catch(err){ errFiles.push(file.name+': '+err.message); }
-  }
-  const uploaded=[...allKeys].sort();
-  if(!uploaded.length){ $('#warnbar').classList.add('hide'); alert('เปิดไฟล์ไม่สำเร็จ:\n'+errFiles.join('\n')); return; }
-  // default view: 1 ไฟล์ -> ทุกเดือนในไฟล์นั้น (ไฟล์เดียวอาจมีหลายเดือน — แสดงครบเหมือนเดิม);
-  // หลายไฟล์ -> เดือนล่าสุด (เบา หลีกเลี่ยง render หลายล้านแถวพร้อมกัน) เลือกเพิ่มได้จากแถบเดือน
-  S.selMonths = (files.length===1) ? uploaded.slice() : [uploaded[uploaded.length-1]];
-  FILTER_DEFS.forEach(f=>S.filters[f.key]=new Set());
-  rebuildActiveRows(); S.refDate=null; S.rangeFrom=null; S.rangeTo=null;
-  const notes=[];
-  notes.push(`อัปสำเร็จ ${okCount} ไฟล์ • เดือนที่อัป: ${uploaded.map(monthLabelOf).join(', ')} • รวมทั้งหมด ${availableMonths().length} เดือน`);
-  if(files.length>1 && uploaded.length>1) notes.push(`แสดงเดือนล่าสุด (${monthLabelOf(S.selMonths[0])}) — เลือกเดือน/ช่วงเพิ่มได้จากแถบด้านบน`);
-  if(S.rows.every(r=>r.gp===0)) notes.push('บางไฟล์ไม่มีคอลัมน์กำไร (Margin_Value) — GP อาจเป็น 0');
-  if(noBill) notes.push('บางไฟล์ไม่มีคอลัมน์ Bill Count — นับบิลจาก Store+Receipt_No ที่มีขายจริง');
-  if(seedTot) notes.push(`ตัดแถว SEEDING รวม ${seedTot.toLocaleString()} แถว`);
-  if(stockTot) notes.push(`แถวสต็อกรวม ${stockTot.toLocaleString()} แถว — เก็บ Aging เฉพาะเดือนล่าสุด (${monthLabelOf(S.stockMonth)})`);
-  if(errFiles.length) notes.push(`⚠️ เปิดไม่สำเร็จ ${errFiles.length} ไฟล์: ${errFiles.join('; ')}`);
-  $('#warnbar').textContent='หมายเหตุ: '+notes.join(' • '); $('#warnbar').classList.remove('hide');
-  showDash(); renderMonthBar(); save();
-  syncMonthsUp(uploaded); if(agingAny) syncAgingUp();
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});
+      const rows=parseWorkbook(wb);
+      // accumulate: this file's months REPLACE those months only; other months already loaded stay
+      const uploadedKeys=mergeUploadedMonths(rows);        // ascending YYYY-MM
+      const maxK=uploadedKeys[uploadedKeys.length-1];
+      // stock/aging is a current snapshot — keep it only from the latest month uploaded so far;
+      // an older file's stock/aging is dropped (its STOCK rows are stale)
+      let agingKept=true;
+      if(!S.stockMonth || maxK>=S.stockMonth){ S.agingRows=rows._aging||[]; S.stockMonth=maxK; }
+      else agingKept=false;
+      // show what was just added (user can switch to a range / all via the month bar)
+      S.selMonths=uploadedKeys.slice();
+      FILTER_DEFS.forEach(f=>S.filters[f.key]=new Set());
+      rebuildActiveRows(); S.refDate=null;
+      const notes=[];
+      if(S.rows.every(r=>r.gp===0)) notes.push('ไม่พบคอลัมน์กำไร (Margin_Value) — ตัวเลข GP จะเป็น 0');
+      if(!S.hasBillCount) notes.push('ไม่พบคอลัมน์ Bill Count — จำนวนบิลจะนับจากใบเสร็จ (Store+Receipt_No) ที่มีขายจริงแทน');
+      if(rows._skippedSeed) notes.push(`ตัดแถว SEEDING ${rows._skippedSeed.toLocaleString()} แถว (ไม่ใช่ยอดขายจริง)`);
+      if(rows._skippedStock) notes.push(agingKept
+        ? `แถวสต็อก (Source = STOCK) ${rows._skippedStock.toLocaleString()} แถว — มีสินค้าติดแฟล็ก Aging ${S.agingRows.length.toLocaleString()} แถว ใช้ในหน้า 📦 สต็อก & Aging`
+        : `แถวสต็อก ${rows._skippedStock.toLocaleString()} แถวถูกตัด (เดือนนี้เก่ากว่าเดือนล่าสุด — เก็บสต็อก/Aging เฉพาะเดือนล่าสุด ${monthLabelOf(S.stockMonth)})`);
+      notes.push('เดือนในไฟล์นี้: '+uploadedKeys.map(monthLabelOf).join(', ')+' • รวมทั้งหมด '+availableMonths().length+' เดือน');
+      if(notes.length){ $('#warnbar').textContent='หมายเหตุ: '+notes.join(' • '); $('#warnbar').classList.remove('hide'); }
+      else $('#warnbar').classList.add('hide');
+      showDash(); renderMonthBar(); save();
+      syncMonthsUp(uploadedKeys); if(agingKept) syncAgingUp();
+    }catch(err){ alert('เปิดไฟล์ไม่สำเร็จ: '+err.message); }
+  };
+  rd.readAsArrayBuffer(file);
 }
 function handleStockFile(file){
   if(!S.rows.length){ alert('กรุณาอัปโหลดไฟล์ยอดขายก่อน แล้วค่อยอัปโหลดไฟล์สต็อก'); return; }
   const rd=new FileReader();
   rd.onload=e=>{
     try{
-      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',dense:true});
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
       const rows=parseStockWorkbook(wb);
       S.stockRows=rows; S.stockAsOf=rows._asOf;
       // scope to NATGEO + GOODR as requested — easily changed anytime via the แบรนด์ filter above
@@ -2449,13 +2293,10 @@ function handleTargetFile(file){
 }
 
 $('#uploadBtn').onclick=()=>$('#file').click();
-$('#file').onchange=e=>{ if(e.target.files.length) handleFiles(e.target.files); e.target.value=''; };
+$('#file').onchange=e=>{ if(e.target.files[0]) handleFile(e.target.files[0]); };
 $('#uploadStockBtn').onclick=()=>$('#stockFile').click();
 $('#stockFile').onchange=e=>{ if(e.target.files[0]) handleStockFile(e.target.files[0]); };
 $('#downloadTargetBtn').onclick=()=>downloadTargetTemplate();
-$('#downloadStoreTypeBtn').onclick=()=>downloadStoreTypeTemplate();
-$('#uploadStoreTypeBtn').onclick=()=>$('#storeTypeFile').click();
-$('#storeTypeFile').onchange=e=>{ if(e.target.files[0]) handleStoreTypeFile(e.target.files[0]); };
 $('#uploadTargetBtn').onclick=()=>$('#targetFile').click();
 $('#targetFile').onchange=e=>{ if(e.target.files[0]) handleTargetFile(e.target.files[0]); };
 $('#signInBtn').onclick=()=>window.fb.signIn();
@@ -2471,7 +2312,7 @@ const drop=$('#drop');
 drop.onclick=()=>$('#file').click();
 ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
 ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hover');}));
-drop.addEventListener('drop',e=>{ if(e.dataTransfer.files.length) handleFiles(e.dataTransfer.files); });
+drop.addEventListener('drop',e=>{ if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
 
 $('#seg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b)return;
   [...$('#seg').children].forEach(x=>x.classList.remove('active')); b.classList.add('active');
