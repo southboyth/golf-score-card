@@ -15,7 +15,7 @@ Snapshot สมบูรณ์ที่รันได้ของแต่ล�
 ## v2.3.1
 
 - **Date:** 2026-09-18
-- **Status:** 🧪 TESTING (รอผู้ใช้ยืนยัน "ใช้งานได้")
+- **Status:** ✅ STABLE (ผู้ใช้ยืนยัน "ใช้งานได้" 2026-09-18) — เวอร์ชันปัจจุบันบนเว็บจริง
 - **Snapshot:** `versions/v2.3.1/` — **Rollback:** v2.3.0 (`versions/v2.3.0/`)
 - **Files:** index.html, sw.js (cache `sales-dash-v26`), manifest.json, icon.svg
 
@@ -37,7 +37,7 @@ Snapshot สมบูรณ์ที่รันได้ของแต่ล�
 ## v2.3.0
 
 - **Date:** 2026-09-18
-- **Status:** ✅ STABLE (ผู้ใช้ยืนยัน "ใช้งานได้" 2026-09-18) — เวอร์ชันปัจจุบันบนเว็บจริง
+- **Status:** 🗄️ DEPRECATED (เก็บไว้ rollback — v2.3.1 ขึ้นแทน)
 - **Snapshot:** `versions/v2.3.0/` — **Rollback:** v2.0.0 (`versions/v2.0.0/`)
 - **Files:** index.html, sw.js (cache `sales-dash-v25`), manifest.json, icon.svg
 - **ที่มา:** ต่อยอดจาก v2.0.0 (สะอาด) — แก้บั๊กฟิลเตอร์เดือน แล้วดึงงานที่ดีจาก v2.2.0–v2.2.3
