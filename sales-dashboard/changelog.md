@@ -15,7 +15,7 @@ Snapshot สมบูรณ์ที่รันได้ของแต่ล�
 ## v2.4.0
 
 - **Date:** 2026-09-18
-- **Status:** 🧪 TESTING (รอผู้ใช้ยืนยัน "ใช้งานได้")
+- **Status:** ✅ STABLE (ผู้ใช้ยืนยัน "ใช้งานได้" 2026-09-18) — เวอร์ชันปัจจุบันบนเว็บจริง
 - **Snapshot:** `versions/v2.4.0/` — **Rollback:** v2.3.3 (`versions/v2.3.3/`)
 - **Files:** index.html, sw.js (cache `sales-dash-v29`), manifest.json, icon.svg
 
@@ -61,7 +61,7 @@ Snapshot สมบูรณ์ที่รันได้ของแต่ล�
 ## v2.3.3
 
 - **Date:** 2026-09-18
-- **Status:** 🧪 TESTING (รอผู้ใช้ยืนยัน "ใช้งานได้")
+- **Status:** 🗄️ DEPRECATED (เก็บไว้ rollback — v2.4.0 ขึ้นแทน)
 - **Snapshot:** `versions/v2.3.3/` — **Rollback:** v2.3.2 (`versions/v2.3.2/`)
 - **Files:** index.html, sw.js (cache `sales-dash-v28`), manifest.json, icon.svg
 
