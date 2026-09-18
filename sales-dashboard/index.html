@@ -176,7 +176,7 @@ tr.total-row td:first-child{color:var(--brand)}
       <div class="sub" id="asof">ยังไม่มีข้อมูล — อัปโหลดไฟล์เพื่อเริ่มต้น</div>
     </div>
     <div class="toolbar">
-      <input type="file" id="file" accept=".xlsx,.xls,.csv" class="hide">
+      <input type="file" id="file" accept=".xlsx,.xls,.csv" class="hide" multiple>
       <button class="btn primary" id="uploadBtn">⬆️ อัปโหลดไฟล์ยอดขาย</button>
       <input type="file" id="stockFile" accept=".xlsx,.xls,.csv" class="hide">
       <button class="btn hide" id="uploadStockBtn">📦 อัปโหลดไฟล์สต็อก</button>
@@ -193,8 +193,8 @@ tr.total-row td:first-child{color:var(--brand)}
     <div class="drop" id="drop">
       <div class="empty">
         <div class="big">📈</div>
-        <div style="font-size:17px;font-weight:800;color:var(--text)">ลากไฟล์ Excel มาวาง หรือกดเพื่อเลือกไฟล์</div>
-        <div style="margin-top:8px">รองรับ .xlsx / .xls / .csv ที่ export จาก SharePoint — ระบบจะหา sheet ยอดขายและจับคู่คอลัมน์ให้อัตโนมัติ</div>
+        <div style="font-size:17px;font-weight:800;color:var(--text)">ลากไฟล์ Excel มาวาง หรือกดเพื่อเลือกไฟล์ (เลือกได้หลายไฟล์พร้อมกัน)</div>
+        <div style="margin-top:8px">รองรับ .xlsx / .xls / .csv ที่ export จาก SharePoint — เลือกหลายไฟล์รายเดือนทีเดียวได้ ระบบจะแยกเดือน+จับคู่คอลัมน์ให้อัตโนมัติ</div>
         <div style="margin-top:14px"><span class="pill">ประมวลผลในเครื่องคุณ 100% • ข้อมูลไม่ถูกส่งออกไปไหน</span></div>
       </div>
     </div>
@@ -2272,39 +2272,53 @@ function applyDateInputs(){
   $('#rangeToFld').classList.toggle('hide', !custom);
   [...$('#seg').children].forEach(x=>x.classList.toggle('active', x.dataset.v===S.view));
 }
-function handleFile(file){
-  const rd=new FileReader();
-  rd.onload=e=>{
+function readArrayBuffer(file){
+  return new Promise((res,rej)=>{ const rd=new FileReader();
+    rd.onload=e=>res(e.target.result); rd.onerror=()=>rej(new Error('อ่านไฟล์ไม่ได้')); rd.readAsArrayBuffer(file); });
+}
+// upload one OR many files at once. Each file's months REPLACE only those months (accumulate);
+// files are processed one after another so several monthly files can be dropped in together.
+async function handleFiles(fileList){
+  const files=[...(fileList||[])]; if(!files.length) return;
+  const allKeys=new Set(); const errFiles=[];
+  let seedTot=0, stockTot=0, agingAny=false, noBill=false, okCount=0;
+  const yield_=()=>new Promise(r=>setTimeout(r,0)); // let the browser repaint progress between files
+  let i=0;
+  for(const file of files){
+    i++;
+    $('#warnbar').textContent=`⏳ กำลังประมวลผลไฟล์ ${i}/${files.length}: ${file.name} ...`;
+    $('#warnbar').classList.remove('hide');
+    await yield_();
     try{
-      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});
+      const buf=await readArrayBuffer(file);
+      const wb=XLSX.read(new Uint8Array(buf),{type:'array',cellDates:true});
       const rows=parseWorkbook(wb);
-      // accumulate: this file's months REPLACE those months only; other months already loaded stay
-      const uploadedKeys=mergeUploadedMonths(rows);        // ascending YYYY-MM
-      const maxK=uploadedKeys[uploadedKeys.length-1];
-      // stock/aging is a current snapshot — keep it only from the latest month uploaded so far;
-      // an older file's stock/aging is dropped (its STOCK rows are stale)
-      let agingKept=true;
-      if(!S.stockMonth || maxK>=S.stockMonth){ S.agingRows=rows._aging||[]; S.stockMonth=maxK; }
-      else agingKept=false;
-      // show what was just added (user can switch to a range / all via the month bar)
-      S.selMonths=uploadedKeys.slice();
-      FILTER_DEFS.forEach(f=>S.filters[f.key]=new Set());
-      rebuildActiveRows(); S.refDate=null;
-      const notes=[];
-      if(S.rows.every(r=>r.gp===0)) notes.push('ไม่พบคอลัมน์กำไร (Margin_Value) — ตัวเลข GP จะเป็น 0');
-      if(!S.hasBillCount) notes.push('ไม่พบคอลัมน์ Bill Count — จำนวนบิลจะนับจากใบเสร็จ (Store+Receipt_No) ที่มีขายจริงแทน');
-      if(rows._skippedSeed) notes.push(`ตัดแถว SEEDING ${rows._skippedSeed.toLocaleString()} แถว (ไม่ใช่ยอดขายจริง)`);
-      if(rows._skippedStock) notes.push(agingKept
-        ? `แถวสต็อก (Source = STOCK) ${rows._skippedStock.toLocaleString()} แถว — มีสินค้าติดแฟล็ก Aging ${S.agingRows.length.toLocaleString()} แถว ใช้ในหน้า 📦 สต็อก & Aging`
-        : `แถวสต็อก ${rows._skippedStock.toLocaleString()} แถวถูกตัด (เดือนนี้เก่ากว่าเดือนล่าสุด — เก็บสต็อก/Aging เฉพาะเดือนล่าสุด ${monthLabelOf(S.stockMonth)})`);
-      notes.push('เดือนในไฟล์นี้: '+uploadedKeys.map(monthLabelOf).join(', ')+' • รวมทั้งหมด '+availableMonths().length+' เดือน');
-      if(notes.length){ $('#warnbar').textContent='หมายเหตุ: '+notes.join(' • '); $('#warnbar').classList.remove('hide'); }
-      else $('#warnbar').classList.add('hide');
-      showDash(); renderMonthBar(); save();
-      syncMonthsUp(uploadedKeys); if(agingKept) syncAgingUp();
-    }catch(err){ alert('เปิดไฟล์ไม่สำเร็จ: '+err.message); }
-  };
-  rd.readAsArrayBuffer(file);
+      const keys=mergeUploadedMonths(rows);          // ascending YYYY-MM for this file
+      keys.forEach(k=>allKeys.add(k));
+      const maxK=keys[keys.length-1];
+      // keep stock/aging only from the newest month seen across all files
+      if(!S.stockMonth || maxK>=S.stockMonth){ S.agingRows=rows._aging||[]; S.stockMonth=maxK; agingAny=true; }
+      seedTot+=rows._skippedSeed||0; stockTot+=rows._skippedStock||0;
+      if(!S.hasBillCount) noBill=true; okCount++;
+    }catch(err){ errFiles.push(file.name+': '+err.message); }
+  }
+  const uploaded=[...allKeys].sort();
+  if(!uploaded.length){ $('#warnbar').classList.add('hide'); alert('เปิดไฟล์ไม่สำเร็จ:\n'+errFiles.join('\n')); return; }
+  // 1 file -> all months in it (a file may span several months); many files -> latest month (light)
+  S.selMonths = (files.length===1) ? uploaded.slice() : [uploaded[uploaded.length-1]];
+  FILTER_DEFS.forEach(f=>S.filters[f.key]=new Set());
+  rebuildActiveRows(); S.refDate=null; S.rangeFrom=null; S.rangeTo=null;
+  const notes=[];
+  notes.push(`อัปสำเร็จ ${okCount} ไฟล์ • เดือนที่อัป: ${uploaded.map(monthLabelOf).join(', ')} • รวมทั้งหมด ${availableMonths().length} เดือน`);
+  if(files.length>1) notes.push(`แสดงเดือนล่าสุด (${monthLabelOf(S.selMonths[0])}) — คลิกเดือนที่แถบด้านบนเพื่อดูเดือนนั้น`);
+  if(S.rows.every(r=>r.gp===0)) notes.push('บางไฟล์ไม่มีคอลัมน์กำไร (Margin_Value) — GP อาจเป็น 0');
+  if(noBill) notes.push('บางไฟล์ไม่มีคอลัมน์ Bill Count — นับบิลจาก Store+Receipt_No ที่มีขายจริง');
+  if(seedTot) notes.push(`ตัดแถว SEEDING รวม ${seedTot.toLocaleString()} แถว`);
+  if(stockTot) notes.push(`แถวสต็อกรวม ${stockTot.toLocaleString()} แถว — เก็บ Aging เฉพาะเดือนล่าสุด (${monthLabelOf(S.stockMonth)})`);
+  if(errFiles.length) notes.push(`⚠️ เปิดไม่สำเร็จ ${errFiles.length} ไฟล์: ${errFiles.join('; ')}`);
+  $('#warnbar').textContent='หมายเหตุ: '+notes.join(' • '); $('#warnbar').classList.remove('hide');
+  showDash(); renderMonthBar(); save();
+  syncMonthsUp(uploaded); if(agingAny) syncAgingUp();
 }
 function handleStockFile(file){
   if(!S.rows.length){ alert('กรุณาอัปโหลดไฟล์ยอดขายก่อน แล้วค่อยอัปโหลดไฟล์สต็อก'); return; }
@@ -2337,7 +2351,7 @@ function handleTargetFile(file){
 }
 
 $('#uploadBtn').onclick=()=>$('#file').click();
-$('#file').onchange=e=>{ if(e.target.files[0]) handleFile(e.target.files[0]); };
+$('#file').onchange=e=>{ if(e.target.files.length) handleFiles(e.target.files); e.target.value=''; };
 $('#uploadStockBtn').onclick=()=>$('#stockFile').click();
 $('#stockFile').onchange=e=>{ if(e.target.files[0]) handleStockFile(e.target.files[0]); };
 $('#downloadTargetBtn').onclick=()=>downloadTargetTemplate();
@@ -2356,7 +2370,7 @@ const drop=$('#drop');
 drop.onclick=()=>$('#file').click();
 ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
 ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hover');}));
-drop.addEventListener('drop',e=>{ if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+drop.addEventListener('drop',e=>{ if(e.dataTransfer.files.length) handleFiles(e.dataTransfer.files); });
 
 $('#seg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b)return;
   [...$('#seg').children].forEach(x=>x.classList.remove('active')); b.classList.add('active');
