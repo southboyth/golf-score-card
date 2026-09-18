@@ -12,10 +12,57 @@ Snapshot สมบูรณ์ที่รันได้ของแต่ล�
 
 ---
 
+## v2.6.1
+
+- **Date:** 2026-09-18
+- **Status:** 🧪 TESTING (ทดสอบด้วย Playwright headless ผ่านหมดแล้ว — รอผู้ใช้ยืนยัน "ใช้งานได้" ก่อนมาร์ก STABLE)
+- **Snapshot:** `versions/v2.6.1/` — **Rollback:** v2.6.0 (`versions/v2.6.0/`)
+- **Files:** index.html, sw.js (cache `sales-dash-v32`), manifest.json, icon.svg
+
+### 🐛 แก้บั๊ก: เข้าสู่ระบบบนมือถือขึ้น `auth/cancelled-popup-request`
+ผู้ใช้แจ้งพร้อมภาพหน้าจอ iPhone: กดเข้าสู่ระบบแล้วเด้ง "เข้าสู่ระบบไม่สำเร็จ: Firebase: Error
+(auth/cancelled-popup-request)"
+
+- **สาเหตุ:** โค้ดเดิมยิง `signInWithPopup` ได้ไม่จำกัดครั้ง ไม่มีการกันกดซ้ำ — บนมือถือ popup ใช้เวลา
+  เปิดสักครู่ พอผู้ใช้เห็นว่า "ไม่มีอะไรเกิดขึ้น" แล้วกดซ้ำ Firebase จะยกเลิกคำขอแรกทิ้งแล้วโยน error นี้ออกมา
+  (Firebase อนุญาตให้มี popup ค้างได้ทีละอันเท่านั้น) และ error ทุกชนิดถูกเอามา `alert()` ดิบๆ
+- **แก้ 4 จุด:**
+  1. **กันกดซ้ำ** — ระหว่างที่ยังเข้าสู่ระบบไม่เสร็จ ปุ่มจะถูกปิดและเปลี่ยนเป็น "⏳ กำลังเข้าสู่ระบบ..."
+     การกดซ้ำจะถูกเมินทั้งหมด (ต้นเหตุของ error นี้โดยตรง)
+  2. **ยกเลิกไม่ใช่ความผิดพลาด** — `cancelled-popup-request` / `popup-closed-by-user` / `user-cancelled`
+     ไม่เด้ง alert อีกต่อไป แค่ขึ้นข้อความเงียบๆ ว่า "ยกเลิกการเข้าสู่ระบบ — กดปุ่มอีกครั้งได้เลย"
+  3. **ทางออกสำรองเมื่อ popup ถูกบล็อก** — `popup-blocked` /
+     `operation-not-supported-in-this-environment` (iOS ตั้งค่า "บล็อกป๊อปอัป" หรือเปิดจากไอคอนหน้าจอโฮม)
+     จะสลับไปใช้ `signInWithRedirect` แบบเต็มหน้าจออัตโนมัติ พร้อมรับผลกลับด้วย `getRedirectResult`
+  4. **ไม่เงียบหาย** — Safari บล็อก storage ข้ามโดเมนที่ Firebase ต้องใช้ตอน redirect ทำให้อาจเด้งกลับมา
+     แบบยังไม่ล็อกอินและไม่มี error เลย → ตอนนี้ตรวจจับได้ (ใช้ flag ใน sessionStorage) แล้วบอกวิธีแก้
+     เป็นภาษาไทย (เปิดใน Safari/Chrome ปกติ ไม่ใช่ไอคอนหน้าจอโฮม / ปิดการบล็อกป๊อปอัป)
+- **ข้อความ error แปลไทย** — `unauthorized-domain`, `network-request-failed`, `too-many-requests`,
+  `popup-blocked` แสดงเป็นภาษาคนอ่านรู้เรื่องแทนรหัสดิบของ Firebase
+
+### ทดสอบ (Playwright headless — stub Firebase auth เพื่อจำลองทุกกรณี)
+| สถานการณ์ | ผลลัพธ์ |
+|---|---|
+| กดปุ่มรัว 3 ครั้ง (เคสของผู้ใช้) | เรียก popup แค่ **1 ครั้ง** • ไม่มี alert • ปุ่มกลับมากดได้ ✅ |
+| ผู้ใช้ปิด popup เอง | ไม่มี alert ขึ้นข้อความเงียบๆ ✅ |
+| popup ถูกบล็อก (iOS) | สลับไป `signInWithRedirect` อัตโนมัติ ✅ |
+| redirect กลับมาแบบยังไม่ล็อกอิน | เตือนพร้อมบอกวิธีแก้ ✅ |
+| redirect สำเร็จ / โหลดหน้าปกติ | ไม่เตือนผิดพลาด ✅ |
+| เข้าสู่ระบบสำเร็จ | ซ่อนปุ่ม แสดงอีเมล ซิงค์ตามปกติ ✅ |
+
+- Regression suite เดิม (Sales/Stock/Custom) ผ่านครบ ไม่มี console error ✅
+
+### Known issues
+- ถ้า Safari บล็อก storage ข้ามโดเมน การ redirect จะยังไม่สำเร็จจริง (ข้อจำกัดของ Firebase + GitHub Pages
+  ที่ authDomain คนละโดเมนกับเว็บ) — เวอร์ชันนี้แค่ทำให้ "รู้ตัวและมีทางแก้" แทนที่จะเงียบหาย
+  ทางแก้ถาวรคือผูก custom domain ให้ authDomain ตรงกับโดเมนเว็บ (ยังไม่ได้ทำ)
+
+---
+
 ## v2.6.0
 
 - **Date:** 2026-09-18
-- **Status:** ✅ STABLE (ผู้ใช้ยืนยัน "ใช้ได้" 2026-09-18) — เวอร์ชันปัจจุบันบนเว็บจริง
+- **Status:** ✅ STABLE (ผู้ใช้ยืนยัน "ใช้ได้" 2026-09-18) — เวอร์ชันปัจจุบันบนเว็บจริง (v2.6.1 อยู่ระหว่างทดสอบ)
 - **Snapshot:** `versions/v2.6.0/` — **Rollback:** v2.5.0 (`versions/v2.5.0/`)
 - **Files:** index.html, sw.js (cache `sales-dash-v31`), manifest.json, icon.svg
 
